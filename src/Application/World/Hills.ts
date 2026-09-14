@@ -8,18 +8,18 @@ import Time from '../Utils/Time';
 const FLOOR_Y = -2984;
 const TERRAIN_SIZE = 720000;
 const TERRAIN_SEGMENTS = 360;
-const GRASS_COUNT = 110000;
-const GRASS_RADIUS = 60000;
+const GRASS_COUNT = 120000;
+const GRASS_RADIUS = 150000;
 const DESK_PAD_RADIUS = 7000;
 const SKY_RADIUS = 420000;
 
-const RIDGE_COLOR = new THREE.Color('#b9d84f').convertSRGBToLinear();
-const GRASS_COLOR = new THREE.Color('#2f7d17').convertSRGBToLinear();
-const SHADOW_GRASS_COLOR = new THREE.Color('#215c10').convertSRGBToLinear();
+const RIDGE_COLOR = new THREE.Color('#d9ec6e').convertSRGBToLinear();
+const GRASS_COLOR = new THREE.Color('#3a8a1a').convertSRGBToLinear();
+const SHADOW_GRASS_COLOR = new THREE.Color('#173f0c').convertSRGBToLinear();
 const FAR_HILL_COLOR = new THREE.Color('#a9c9a2').convertSRGBToLinear();
-const SKY_TOP = new THREE.Color('#1f63d8').convertSRGBToLinear();
-const SKY_HORIZON = new THREE.Color('#d6e9ff').convertSRGBToLinear();
-const FOG_COLOR = new THREE.Color('#d0e4fb').convertSRGBToLinear();
+const SKY_TOP = new THREE.Color('#2f78dd').convertSRGBToLinear();
+const SKY_HORIZON = new THREE.Color('#eef6ff').convertSRGBToLinear();
+const FOG_COLOR = new THREE.Color('#e4eefb').convertSRGBToLinear();
 
 const noise = new ImprovedNoise();
 
@@ -42,11 +42,11 @@ function rawHeight(x: number, z: number) {
     const ridgeAmp = 7500 + 7000 * THREE.MathUtils.smoothstep((x + z) / 2, -40000, 60000);
     const ridge = ridgeAmp * Math.exp(-(((x - ridgeX) / 42000) ** 2));
     // Extra hills rolling off into the distance on every side.
-    const hillA = 12000 * Math.exp(-((x + 110000) ** 2 + (z + 40000) ** 2) / (2 * 48000 ** 2));
+    const hillA = 16000 * Math.exp(-((x + 95000) ** 2 + (z + 50000) ** 2) / (2 * 52000 ** 2));
     const hillB = 15000 * Math.exp(-((x - 150000) ** 2 + (z + 120000) ** 2) / (2 * 60000 ** 2));
     const hillC = 9000 * Math.exp(-((x + 40000) ** 2 + (z + 150000) ** 2) / (2 * 42000 ** 2));
     const hillD = 11000 * Math.exp(-((x - 20000) ** 2 + (z - 120000) ** 2) / (2 * 52000 ** 2));
-    const hillE = 14000 * Math.exp(-((x + 190000) ** 2 + (z - 90000) ** 2) / (2 * 70000 ** 2));
+    const hillE = 18000 * Math.exp(-((x + 170000) ** 2 + (z - 40000) ** 2) / (2 * 75000 ** 2));
     const farRoll = 7000 * THREE.MathUtils.smoothstep(Math.hypot(x, z), 60000, 200000) * fbm(x / 120000 + 9, z / 120000 + 4, 3);
     const lift = 3500 * THREE.MathUtils.smoothstep(x, -90000, 30000);
     // Keep the foreground gentle so the low camera never dips below the grass.
@@ -119,7 +119,7 @@ export default class Hills {
         const sky = new THREE.Mesh(geometry, material);
         sky.position.y = FLOOR_Y;
         this.scene.add(sky);
-        this.scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0000052);
+        this.scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0000040);
     }
 
     setTerrain() {
@@ -155,7 +155,7 @@ export default class Hills {
             const x = positions.getX(i);
             const z = positions.getZ(i);
             const height = positions.getY(i) - FLOOR_Y;
-            const sunlit = THREE.MathUtils.smoothstep(height / maxHeight, 0.1, 0.9);
+            const sunlit = Math.pow(THREE.MathUtils.smoothstep(height / maxHeight, 0.05, 0.95), 1.4);
             color.copy(GRASS_COLOR).lerp(RIDGE_COLOR, sunlit);
             // Wind-swept bands running across the slope.
             const band = Math.sin(x / 2200 + z / 9000 + fbm(x / 20000, z / 20000, 2) * 4);
@@ -199,6 +199,8 @@ export default class Hills {
 
         const offsets = new Float32Array(GRASS_COUNT * 3);
         const params = new Float32Array(GRASS_COUNT * 3); // height, rotation, phase
+        const shades = new Float32Array(GRASS_COUNT);
+        const maxRidge = 16000;
         let n = 0;
         while (n < GRASS_COUNT) {
             const r = Math.sqrt(Math.random()) * GRASS_RADIUS;
@@ -210,11 +212,13 @@ export default class Hills {
             const pad = THREE.MathUtils.smoothstep(Math.hypot(x, z), DESK_PAD_RADIUS, DESK_PAD_RADIUS * 2.6);
             const y = FLOOR_Y + terrainHeight(x, z) * pad;
             offsets.set([x, y, z], n * 3);
-            params.set([170 + Math.random() * 230, Math.random() * Math.PI, Math.random() * Math.PI * 2], n * 3);
+            params.set([90 + Math.random() * 110, Math.random() * Math.PI, Math.random() * Math.PI * 2], n * 3);
+            shades[n] = THREE.MathUtils.smoothstep((y - FLOOR_Y) / maxRidge, 0.05, 0.9);
             n++;
         }
         geometry.setAttribute('offset', new THREE.InstancedBufferAttribute(offsets, 3));
         geometry.setAttribute('params', new THREE.InstancedBufferAttribute(params, 3));
+        geometry.setAttribute('shade', new THREE.InstancedBufferAttribute(shades, 1));
 
         this.grassUniforms = { uTime: { value: 0 } };
         const material = new THREE.ShaderMaterial({
@@ -222,15 +226,17 @@ export default class Hills {
             fog: true,
             uniforms: {
                 ...this.grassUniforms,
-                uBase: { value: SHADOW_GRASS_COLOR },
-                uTip: { value: new THREE.Color('#7fc63a').convertSRGBToLinear() },
+                uBase: { value: GRASS_COLOR },
+                uTip: { value: RIDGE_COLOR },
                 fogColor: { value: FOG_COLOR },
-                fogDensity: { value: 0.0000052 },
+                fogDensity: { value: 0.0000040 },
             },
             vertexShader: `
                 attribute vec3 offset;
                 attribute vec3 params;
+                attribute float shade;
                 uniform float uTime;
+                varying float vShade;
                 varying float vT;
                 varying float vFog;
                 void main() {
@@ -238,14 +244,15 @@ export default class Hills {
                     float rot = params.y;
                     float phase = params.z;
                     vT = position.y;
+                    vShade = shade;
                     float c = cos(rot), s = sin(rot);
-                    vec3 p = vec3(position.x * 26.0, position.y * height, 0.0);
+                    vec3 p = vec3(position.x * 18.0, position.y * height, 0.0);
                     p = vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z);
                     float sway = sin(uTime * 1.6 + phase + offset.x * 0.0004) * 0.35 * vT * vT * height;
                     p.x += sway;
                     p.z += sway * 0.4;
                     vec4 mv = modelViewMatrix * vec4(p + offset, 1.0);
-                    vFog = 1.0 - clamp(exp(-pow(0.0000052 * -mv.z, 2.0)), 0.0, 1.0);
+                    vFog = 1.0 - clamp(exp(-pow(0.0000040 * -mv.z, 2.0)), 0.0, 1.0);
                     gl_Position = projectionMatrix * mv;
                 }
             `,
@@ -254,9 +261,10 @@ export default class Hills {
                 uniform vec3 uTip;
                 uniform vec3 fogColor;
                 varying float vT;
+                varying float vShade;
                 varying float vFog;
                 void main() {
-                    vec3 color = mix(uBase, uTip, smoothstep(0.0, 1.0, vT));
+                    vec3 color = mix(uBase, uTip, vShade) * (0.85 + 0.25 * vT);
                     gl_FragColor = vec4(mix(color, fogColor, vFog), 1.0);
                 }
             `,
@@ -363,14 +371,14 @@ export default class Hills {
     setLights() {
         const sun = new THREE.DirectionalLight(
             new THREE.Color('#fff4d6').convertSRGBToLinear(),
-            1.35
+            2.3
         );
-        sun.position.set(-60000, 90000, 45000);
+        sun.position.set(150000, 52000, -70000);
         sun.target.position.set(0, FLOOR_Y, 0);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
-        sun.shadow.camera.near = 20000;
-        sun.shadow.camera.far = 200000;
+        sun.shadow.camera.near = 100000;
+        sun.shadow.camera.far = 240000;
         sun.shadow.camera.left = -14000;
         sun.shadow.camera.right = 14000;
         sun.shadow.camera.top = 14000;
@@ -382,7 +390,7 @@ export default class Hills {
         const fill = new THREE.HemisphereLight(
             new THREE.Color('#bfdcff').convertSRGBToLinear(),
             new THREE.Color('#5f8a3a').convertSRGBToLinear(),
-            0.55
+            0.42
         );
         this.scene.add(fill);
     }
