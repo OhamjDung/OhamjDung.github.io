@@ -6,8 +6,10 @@ import Time from '../Utils/Time';
 
 // Scene units are ~cm; the desk sits at the origin with its floor near y = -2984.
 const FLOOR_Y = -2984;
-const TERRAIN_SIZE = 260000;
-const TERRAIN_SEGMENTS = 220;
+const TERRAIN_SIZE = 720000;
+const TERRAIN_SEGMENTS = 360;
+const GRASS_COUNT = 110000;
+const GRASS_RADIUS = 60000;
 const DESK_PAD_RADIUS = 7000;
 const SKY_RADIUS = 420000;
 
@@ -37,14 +39,21 @@ function fbm(x: number, y: number, octaves: number) {
 function rawHeight(x: number, z: number) {
     const ridgeX = 52000 + z * 0.35;
     // Screen-right is the (+x, +z) diagonal; the ridge climbs toward it.
-    const ridgeAmp = 9000 + 8000 * THREE.MathUtils.smoothstep((x + z) / 2, -40000, 60000);
+    const ridgeAmp = 7500 + 7000 * THREE.MathUtils.smoothstep((x + z) / 2, -40000, 60000);
     const ridge = ridgeAmp * Math.exp(-(((x - ridgeX) / 42000) ** 2));
+    // Extra hills rolling off into the distance on every side.
+    const hillA = 12000 * Math.exp(-((x + 110000) ** 2 + (z + 40000) ** 2) / (2 * 48000 ** 2));
+    const hillB = 15000 * Math.exp(-((x - 150000) ** 2 + (z + 120000) ** 2) / (2 * 60000 ** 2));
+    const hillC = 9000 * Math.exp(-((x + 40000) ** 2 + (z + 150000) ** 2) / (2 * 42000 ** 2));
+    const hillD = 11000 * Math.exp(-((x - 20000) ** 2 + (z - 120000) ** 2) / (2 * 52000 ** 2));
+    const hillE = 14000 * Math.exp(-((x + 190000) ** 2 + (z - 90000) ** 2) / (2 * 70000 ** 2));
+    const farRoll = 7000 * THREE.MathUtils.smoothstep(Math.hypot(x, z), 60000, 200000) * fbm(x / 120000 + 9, z / 120000 + 4, 3);
     const lift = 3500 * THREE.MathUtils.smoothstep(x, -90000, 30000);
     // Keep the foreground gentle so the low camera never dips below the grass.
     const rollAmp = 900 + 1900 * THREE.MathUtils.smoothstep(x, -30000, 40000);
     const roll = rollAmp * fbm(x / 45000 + 3.1, z / 45000 - 1.7, 3);
     const detail = 350 * fbm(x / 9000, z / 9000, 2);
-    return ridge + lift + roll + detail;
+    return ridge + hillA + hillB + hillC + hillD + hillE + farRoll + lift + roll + detail;
 }
 
 const ORIGIN_HEIGHT = rawHeight(0, 0);
@@ -60,6 +69,8 @@ export default class Hills {
     camera: Camera;
     time: Time;
     clouds: THREE.InstancedMesh;
+    grass: THREE.Mesh;
+    grassUniforms: { uTime: THREE.IUniform<number> };
     cloudOffsets: number[];
     cloudBase: THREE.Matrix4[];
 
@@ -71,6 +82,7 @@ export default class Hills {
 
         this.setSky();
         this.setTerrain();
+        this.setGrass();
         this.setFarHills();
         this.setClouds();
         this.setLights();
@@ -107,7 +119,7 @@ export default class Hills {
         const sky = new THREE.Mesh(geometry, material);
         sky.position.y = FLOOR_Y;
         this.scene.add(sky);
-        this.scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0000042);
+        this.scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0000052);
     }
 
     setTerrain() {
@@ -166,6 +178,92 @@ export default class Hills {
         const terrain = new THREE.Mesh(geometry, material);
         terrain.receiveShadow = true;
         this.scene.add(terrain);
+    }
+
+    setGrass() {
+        // Thin tapered blades; base at y = 0 so the instance offset lands on the terrain.
+        const blade = new THREE.BufferGeometry();
+        const h = 1;
+        blade.setAttribute('position', new THREE.Float32BufferAttribute([
+            -0.5, 0, 0, 0.5, 0, 0, 0.3, h * 0.55, 0,
+            -0.5, 0, 0, 0.3, h * 0.55, 0, -0.3, h * 0.55, 0,
+            -0.3, h * 0.55, 0, 0.3, h * 0.55, 0, 0, h, 0,
+        ], 3));
+        blade.setAttribute('uv', new THREE.Float32BufferAttribute([
+            0, 0, 1, 0, 0.8, 0.55, 0, 0, 0.8, 0.55, 0.2, 0.55, 0.2, 0.55, 0.8, 0.55, 0.5, 1,
+        ], 2));
+        const geometry = new THREE.InstancedBufferGeometry();
+        geometry.index = blade.index;
+        geometry.attributes = blade.attributes;
+        geometry.instanceCount = GRASS_COUNT;
+
+        const offsets = new Float32Array(GRASS_COUNT * 3);
+        const params = new Float32Array(GRASS_COUNT * 3); // height, rotation, phase
+        let n = 0;
+        while (n < GRASS_COUNT) {
+            const r = Math.sqrt(Math.random()) * GRASS_RADIUS;
+            const a = Math.random() * Math.PI * 2;
+            const x = Math.cos(a) * r;
+            const z = Math.sin(a) * r;
+            // Leave the desk pad and the camera's own footprint clear.
+            if (Math.hypot(x, z) < 4200) continue;
+            const pad = THREE.MathUtils.smoothstep(Math.hypot(x, z), DESK_PAD_RADIUS, DESK_PAD_RADIUS * 2.6);
+            const y = FLOOR_Y + terrainHeight(x, z) * pad;
+            offsets.set([x, y, z], n * 3);
+            params.set([170 + Math.random() * 230, Math.random() * Math.PI, Math.random() * Math.PI * 2], n * 3);
+            n++;
+        }
+        geometry.setAttribute('offset', new THREE.InstancedBufferAttribute(offsets, 3));
+        geometry.setAttribute('params', new THREE.InstancedBufferAttribute(params, 3));
+
+        this.grassUniforms = { uTime: { value: 0 } };
+        const material = new THREE.ShaderMaterial({
+            side: THREE.DoubleSide,
+            fog: true,
+            uniforms: {
+                ...this.grassUniforms,
+                uBase: { value: SHADOW_GRASS_COLOR },
+                uTip: { value: new THREE.Color('#7fc63a').convertSRGBToLinear() },
+                fogColor: { value: FOG_COLOR },
+                fogDensity: { value: 0.0000052 },
+            },
+            vertexShader: `
+                attribute vec3 offset;
+                attribute vec3 params;
+                uniform float uTime;
+                varying float vT;
+                varying float vFog;
+                void main() {
+                    float height = params.x;
+                    float rot = params.y;
+                    float phase = params.z;
+                    vT = position.y;
+                    float c = cos(rot), s = sin(rot);
+                    vec3 p = vec3(position.x * 26.0, position.y * height, 0.0);
+                    p = vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z);
+                    float sway = sin(uTime * 1.6 + phase + offset.x * 0.0004) * 0.35 * vT * vT * height;
+                    p.x += sway;
+                    p.z += sway * 0.4;
+                    vec4 mv = modelViewMatrix * vec4(p + offset, 1.0);
+                    vFog = 1.0 - clamp(exp(-pow(0.0000052 * -mv.z, 2.0)), 0.0, 1.0);
+                    gl_Position = projectionMatrix * mv;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uBase;
+                uniform vec3 uTip;
+                uniform vec3 fogColor;
+                varying float vT;
+                varying float vFog;
+                void main() {
+                    vec3 color = mix(uBase, uTip, smoothstep(0.0, 1.0, vT));
+                    gl_FragColor = vec4(mix(color, fogColor, vFog), 1.0);
+                }
+            `,
+        });
+        this.grass = new THREE.Mesh(geometry, material);
+        this.grass.frustumCulled = false;
+        this.scene.add(this.grass);
     }
 
     setFarHills() {
@@ -291,13 +389,14 @@ export default class Hills {
 
     enableShadowCasters() {
         this.scene.traverse((child) => {
-            if (child instanceof THREE.Mesh && child !== this.clouds && !child.receiveShadow) {
+            if (child instanceof THREE.Mesh && child !== this.clouds && child !== this.grass && !child.receiveShadow) {
                 child.castShadow = true;
             }
         });
     }
 
     update() {
+        if (this.grassUniforms) this.grassUniforms.uTime.value = this.time.elapsed * 0.001;
         if (!this.clouds) return;
         const drift = this.time.elapsed * 0.9;
         const matrix = new THREE.Matrix4();
