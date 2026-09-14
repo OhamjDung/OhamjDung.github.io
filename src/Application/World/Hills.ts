@@ -16,7 +16,7 @@ const SKY_RADIUS = 420000;
 const SUN_DISTANCE = 170000;
 
 // Bearing is degrees right of the idle camera's forward; elevation is degrees above the horizon.
-const SUN = { bearing: 20, elevation: 17, intensity: 2.6, color: '#ffd98a', glow: '#ffe27a' };
+const SUN = { bearing: -14, elevation: 15, intensity: 1.95, color: '#f0bc4c', glow: '#f5f061' };
 const CAM_FORWARD = new THREE.Vector3(1, 0, -1).normalize();
 const CAM_RIGHT = new THREE.Vector3(1, 0, 1).normalize();
 
