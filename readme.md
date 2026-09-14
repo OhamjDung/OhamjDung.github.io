@@ -1,29 +1,17 @@
-# henryheffernan.com
+# tom-room
 
-This is one of two repositories created for my portfolio website <a href="https://henryheffernan.com/"><samp>henryheffernan.com</samp></a>. If you are looking for the 2D OS repository you can find it <a href="https://github.com/henryjeff/portfolio-inner-site"><samp>here</samp></a>! Thanks for taking the time to check this out. If you have any questions of comments, feel free to shoot me an email at <samp><a href="mailto:henryheffernan@gmail.com">henryheffernan@gmail.com</a></samp> or you can DM me on twitter <a href="https://twitter.com/henryheffernan"><samp>@henryheffernan</samp></a>.
+3D room intro for Tom Pham's portfolio. The monitor screen embeds the Windows XP desktop from [tom-desktop](https://github.com/OhamjDung/tom-desktop).
 
-<br>
-
-To setup a dev environment:
+Based on [henryjeff/portfolio-website](https://github.com/henryjeff/portfolio-website) (MIT).
 
 ```bash
-# Clone the repository
-
-# Install dependencies 
 npm i
-
-# Run the local dev server
-npm run dev
+npm run dev      # webpack dev server, opens on :8080
 ```
 
-To serve a production build:
+Append `?dev` to the URL to load the XP desktop from `localhost:5173` instead of the hosted site.
 
 ```bash
-# Install dependencies if not already done - 'npi i'
-
-# Build for production
-npm run build
-
-# Serve the build using express
-npm start
+npm run build    # production bundle -> dist/
+npm start        # serve dist/ with express
 ```
