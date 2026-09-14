@@ -5,7 +5,7 @@ import Application from '../Application';
 import Debug from '../Utils/Debug';
 import Resources from '../Utils/Resources';
 import Sizes from '../Utils/Sizes';
-import Camera from '../Camera/Camera';
+import Camera, { CameraKey } from '../Camera/Camera';
 import EventEmitter from '../Utils/EventEmitter';
 
 const SCREEN_SIZE = { w: 1280, h: 1024 };
@@ -196,6 +196,21 @@ export default class MonitorScreen extends EventEmitter {
         iframe.id = 'computer-screen';
         iframe.frameBorder = '0';
         iframe.title = 'Tom Pham Desktop';
+        // Delegate the room's start-click activation so the embedded intro can autoplay with sound.
+        iframe.allow = 'autoplay';
+        const startIntro = () =>
+            iframe.contentWindow?.postMessage({ type: 'start-intro' }, '*');
+        this.camera.on('enterMonitor', startIntro);
+        // Replaying the intro while already zoomed in has no enterMonitor to wait for.
+        window.addEventListener('message', (event) => {
+            if (
+                event.data?.type === 'request-intro' &&
+                (this.camera.currentKeyframe === CameraKey.MONITOR ||
+                    this.camera.targetKeyframe === CameraKey.MONITOR)
+            ) {
+                startIntro();
+            }
+        });
 
         // Add iframe to container
         container.appendChild(iframe);
