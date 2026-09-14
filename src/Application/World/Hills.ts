@@ -488,6 +488,8 @@ export default class Hills {
     }
 
     setGui() {
+        // Tuning panel only with ?sun in the URL.
+        if (!new URLSearchParams(window.location.search).has('sun')) return;
         this.gui = new GUI({ title: 'Sun' });
         this.gui.domElement.style.zIndex = '10000';
         const folder = this.gui;
