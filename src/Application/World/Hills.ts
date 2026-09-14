@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import GUI from 'lil-gui';
 import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import Application from '../Application';
 import Camera from '../Camera/Camera';
@@ -12,6 +13,21 @@ const GRASS_COUNT = 120000;
 const GRASS_RADIUS = 150000;
 const DESK_PAD_RADIUS = 7000;
 const SKY_RADIUS = 420000;
+const SUN_DISTANCE = 170000;
+
+// Bearing is degrees right of the idle camera's forward; elevation is degrees above the horizon.
+const SUN = { bearing: 20, elevation: 17, intensity: 2.6, color: '#ffd98a', glow: '#fff1b0' };
+const CAM_FORWARD = new THREE.Vector3(1, 0, -1).normalize();
+const CAM_RIGHT = new THREE.Vector3(1, 0, 1).normalize();
+
+function bearingToDirection(bearingDeg: number, elevDeg: number) {
+    const b = THREE.MathUtils.degToRad(bearingDeg);
+    const e = THREE.MathUtils.degToRad(elevDeg);
+    const dir = CAM_FORWARD.clone().multiplyScalar(Math.cos(b)).add(CAM_RIGHT.clone().multiplyScalar(Math.sin(b)));
+    dir.multiplyScalar(Math.cos(e));
+    dir.y = Math.sin(e);
+    return dir.normalize();
+}
 
 const RIDGE_COLOR = new THREE.Color('#e6f57e').convertSRGBToLinear();
 const GRASS_COLOR = new THREE.Color('#5aa82a').convertSRGBToLinear();
@@ -71,6 +87,10 @@ export default class Hills {
     clouds: THREE.InstancedMesh;
     grass: THREE.Mesh;
     grassUniforms: { uTime: THREE.IUniform<number> };
+    sun: THREE.DirectionalLight;
+    sunDisc: THREE.Sprite;
+    sunGlow: THREE.Sprite;
+    gui: GUI;
     cloudOffsets: number[];
     cloudBase: THREE.Matrix4[];
 
@@ -86,6 +106,8 @@ export default class Hills {
         this.setFarHills();
         this.setClouds();
         this.setLights();
+        this.setSunDisc();
+        this.setGui();
         this.enableShadowCasters();
     }
 
@@ -328,14 +350,8 @@ export default class Hills {
     setClouds() {
         // Placed by bearing/elevation from the idle camera so they land in frame.
         const cam = new THREE.Vector3(-24000, 3600, 24000);
-        const forward = new THREE.Vector3(1, 0, -1).normalize();
-        const right = new THREE.Vector3(1, 0, 1).normalize();
         const cloudAt = (bearingDeg: number, elevDeg: number, dist: number, count: number, spread: number) => {
-            const b = THREE.MathUtils.degToRad(bearingDeg);
-            const e = THREE.MathUtils.degToRad(elevDeg);
-            const dir = forward.clone().multiplyScalar(Math.cos(b)).add(right.clone().multiplyScalar(Math.sin(b)));
-            const center = cam.clone().add(dir.multiplyScalar(dist * Math.cos(e)));
-            center.y += dist * Math.sin(e);
+            const center = cam.clone().add(bearingToDirection(bearingDeg, elevDeg).multiplyScalar(dist));
             return { center, count, spread };
         };
         const clusters = [
@@ -387,10 +403,11 @@ export default class Hills {
 
     setLights() {
         const sun = new THREE.DirectionalLight(
-            new THREE.Color('#ffe9a8').convertSRGBToLinear(),
-            2.4
+            new THREE.Color(SUN.color).convertSRGBToLinear(),
+            SUN.intensity
         );
-        sun.position.set(150000, 52000, -70000);
+        this.sun = sun;
+        this.applySun();
         sun.target.position.set(0, FLOOR_Y, 0);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -412,9 +429,77 @@ export default class Hills {
         this.scene.add(fill);
     }
 
+    applySun() {
+        const dir = bearingToDirection(SUN.bearing, SUN.elevation);
+        this.sun.position.copy(dir).multiplyScalar(SUN_DISTANCE);
+        this.sun.intensity = SUN.intensity;
+        this.sun.color.set(SUN.color).convertSRGBToLinear();
+        if (this.sunDisc) {
+            const skyPos = dir.clone().multiplyScalar(SKY_RADIUS * 0.9);
+            skyPos.y += FLOOR_Y;
+            this.sunDisc.position.copy(skyPos);
+            this.sunGlow.position.copy(skyPos);
+            (this.sunGlow.material as THREE.SpriteMaterial).color.set(SUN.glow).convertSRGBToLinear();
+        }
+    }
+
+    createGlowTexture(inner: string, stops: [number, string][]) {
+        const size = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        gradient.addColorStop(0, inner);
+        stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.encoding = THREE.sRGBEncoding;
+        return texture;
+    }
+
+    setSunDisc() {
+        const disc = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: this.createGlowTexture('rgba(255,255,240,1)', [[0.18, 'rgba(255,250,220,1)'], [0.3, 'rgba(255,236,160,0.55)'], [1, 'rgba(255,220,120,0)']]),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false,
+            fog: false,
+            transparent: true,
+        }));
+        disc.scale.set(SKY_RADIUS * 0.22, SKY_RADIUS * 0.22, 1);
+        disc.renderOrder = -1;
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: this.createGlowTexture('rgba(255,255,255,0.55)', [[0.35, 'rgba(255,255,255,0.18)'], [1, 'rgba(255,255,255,0)']]),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: false,
+            fog: false,
+            transparent: true,
+        }));
+        glow.scale.set(SKY_RADIUS * 0.9, SKY_RADIUS * 0.9, 1);
+        glow.renderOrder = -1;
+        this.sunDisc = disc;
+        this.sunGlow = glow;
+        this.scene.add(disc, glow);
+        this.applySun();
+    }
+
+    setGui() {
+        this.gui = new GUI({ title: 'Sun' });
+        this.gui.domElement.style.zIndex = '10000';
+        const folder = this.gui;
+        folder.add(SUN, 'bearing', -90, 90, 1).name('bearing (deg right)').onChange(() => this.applySun());
+        folder.add(SUN, 'elevation', 2, 80, 1).name('elevation (deg up)').onChange(() => this.applySun());
+        folder.add(SUN, 'intensity', 0, 5, 0.05).onChange(() => this.applySun());
+        folder.addColor(SUN, 'color').name('light color').onChange(() => this.applySun());
+        folder.addColor(SUN, 'glow').name('glow color').onChange(() => this.applySun());
+    }
+
     enableShadowCasters() {
         this.scene.traverse((child) => {
-            if (child instanceof THREE.Mesh && child !== this.clouds && child !== this.grass && !child.receiveShadow) {
+            if (child instanceof THREE.Mesh && child !== this.clouds && child !== this.grass && !child.receiveShadow && !(child instanceof THREE.Sprite)) {
                 child.castShadow = true;
             }
         });
