@@ -7,6 +7,7 @@ import Decor from './Decor';
 import CoffeeSteam from './CoffeeSteam';
 import Cursor from './Cursor';
 import Hitboxes from './Hitboxes';
+import Hills from './Hills';
 import AudioManager from '../Audio/AudioManager';
 export default class World {
     application: Application;
@@ -15,6 +16,7 @@ export default class World {
 
     // Objects in the scene
     environment: Environment;
+    hills: Hills;
     decor: Decor;
     computerSetup: ComputerSetup;
     monitorScreen: MonitorScreen;
@@ -35,6 +37,7 @@ export default class World {
             this.monitorScreen = new MonitorScreen();
             this.coffeeSteam = new CoffeeSteam();
             this.audioManager = new AudioManager();
+            this.hills = new Hills();
             // const hb = new Hitboxes();
             // this.cursor = new Cursor();
         });
@@ -43,6 +46,7 @@ export default class World {
     update() {
         if (this.monitorScreen) this.monitorScreen.update();
         if (this.environment) this.environment.update();
+        if (this.hills) this.hills.update();
         if (this.coffeeSteam) this.coffeeSteam.update();
         if (this.audioManager) this.audioManager.update();
     }

@@ -27,7 +27,11 @@ export default class Environment {
     }
 
     setModel() {
-        this.scene.add(this.bakedModel.getModel());
+        const model = this.bakedModel.getModel();
+        // The baked backdrop cube is replaced by the procedural hills scene.
+        const background = model.getObjectByName('Background');
+        if (background) background.visible = false;
+        this.scene.add(model);
     }
 
     update() {}

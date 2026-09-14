@@ -19,8 +19,8 @@ export class CameraKeyframeInstance {
 
 const keys: { [key in CameraKey]: CameraKeyframe } = {
     idle: {
-        position: new THREE.Vector3(-20000, 12000, 20000),
-        focalPoint: new THREE.Vector3(0, -1000, 0),
+        position: new THREE.Vector3(-24000, 3600, 24000),
+        focalPoint: new THREE.Vector3(0, 5000, 0),
     },
     monitor: {
         position: new THREE.Vector3(0, 950, 2000),
@@ -31,11 +31,11 @@ const keys: { [key in CameraKey]: CameraKeyframe } = {
         focalPoint: new THREE.Vector3(0, 500, 0),
     },
     loading: {
-        position: new THREE.Vector3(-35000, 35000, 35000),
-        focalPoint: new THREE.Vector3(0, -5000, 0),
+        position: new THREE.Vector3(-34000, 9000, 34000),
+        focalPoint: new THREE.Vector3(0, 1500, 0),
     },
     orbitControlsStart: {
-        position: new THREE.Vector3(-15000, 10000, 15000),
+        position: new THREE.Vector3(-15000, 4000, 15000),
         focalPoint: new THREE.Vector3(-100, 350, 0),
     },
 };
@@ -123,13 +123,14 @@ export class IdleKeyframe extends CameraKeyframeInstance {
     }
 
     update() {
+        // Gentle drift; the camera sits just above the grass so keep the sway small.
         this.position.x =
-            Math.sin((this.time.elapsed + 19000) * 0.00008) * this.origin.x;
+            this.origin.x +
+            Math.sin((this.time.elapsed + 19000) * 0.00008) * 2500;
         this.position.y =
-            Math.sin((this.time.elapsed + 1000) * 0.000004) * 4000 +
-            this.origin.y -
-            3000;
-        this.position.z = this.position.z;
+            this.origin.y +
+            Math.sin((this.time.elapsed + 1000) * 0.00012) * 500;
+        this.position.z = this.origin.z;
     }
 }
 

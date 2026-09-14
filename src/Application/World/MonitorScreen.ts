@@ -235,7 +235,8 @@ export default class MonitorScreen extends EventEmitter {
         this.cssScene.add(object);
 
         // Create GL plane
-        const material = new THREE.MeshLambertMaterial();
+        // Black so scene lights cannot tint the transparent occluder white.
+        const material = new THREE.MeshBasicMaterial({ color: 0x000000 });
         material.side = THREE.DoubleSide;
         material.opacity = 0;
         material.transparent = true;
