@@ -16,7 +16,7 @@ const SKY_RADIUS = 420000;
 const SUN_DISTANCE = 170000;
 
 // Bearing is degrees right of the idle camera's forward; elevation is degrees above the horizon.
-const SUN = { bearing: 20, elevation: 17, intensity: 2.6, color: '#ffd98a', glow: '#fff1b0' };
+const SUN = { bearing: 20, elevation: 17, intensity: 2.6, color: '#ffd98a', glow: '#ffe27a' };
 const CAM_FORWARD = new THREE.Vector3(1, 0, -1).normalize();
 const CAM_RIGHT = new THREE.Vector3(1, 0, 1).normalize();
 
@@ -440,6 +440,7 @@ export default class Hills {
             this.sunDisc.position.copy(skyPos);
             this.sunGlow.position.copy(skyPos);
             (this.sunGlow.material as THREE.SpriteMaterial).color.set(SUN.glow).convertSRGBToLinear();
+            (this.sunDisc.material as THREE.SpriteMaterial).color.set(SUN.glow).convertSRGBToLinear();
         }
     }
 
@@ -461,7 +462,7 @@ export default class Hills {
 
     setSunDisc() {
         const disc = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: this.createGlowTexture('rgba(255,255,240,1)', [[0.18, 'rgba(255,250,220,1)'], [0.3, 'rgba(255,236,160,0.55)'], [1, 'rgba(255,220,120,0)']]),
+            map: this.createGlowTexture('rgba(255,255,255,1)', [[0.16, 'rgba(255,255,255,1)'], [0.3, 'rgba(255,255,255,0.6)'], [1, 'rgba(255,255,255,0)']]),
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: false,
@@ -471,14 +472,14 @@ export default class Hills {
         disc.scale.set(SKY_RADIUS * 0.22, SKY_RADIUS * 0.22, 1);
         disc.renderOrder = -1;
         const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: this.createGlowTexture('rgba(255,255,255,0.55)', [[0.35, 'rgba(255,255,255,0.18)'], [1, 'rgba(255,255,255,0)']]),
+            map: this.createGlowTexture('rgba(255,255,255,0.9)', [[0.25, 'rgba(255,255,255,0.45)'], [0.6, 'rgba(255,255,255,0.12)'], [1, 'rgba(255,255,255,0)']]),
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             depthTest: false,
             fog: false,
             transparent: true,
         }));
-        glow.scale.set(SKY_RADIUS * 0.9, SKY_RADIUS * 0.9, 1);
+        glow.scale.set(SKY_RADIUS * 1.1, SKY_RADIUS * 1.1, 1);
         glow.renderOrder = -1;
         this.sunDisc = disc;
         this.sunGlow = glow;
