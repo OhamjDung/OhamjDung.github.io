@@ -13,12 +13,12 @@ const GRASS_RADIUS = 150000;
 const DESK_PAD_RADIUS = 7000;
 const SKY_RADIUS = 420000;
 
-const RIDGE_COLOR = new THREE.Color('#d9ec6e').convertSRGBToLinear();
-const GRASS_COLOR = new THREE.Color('#3a8a1a').convertSRGBToLinear();
-const SHADOW_GRASS_COLOR = new THREE.Color('#173f0c').convertSRGBToLinear();
+const RIDGE_COLOR = new THREE.Color('#e6f57e').convertSRGBToLinear();
+const GRASS_COLOR = new THREE.Color('#5aa82a').convertSRGBToLinear();
+const SHADOW_GRASS_COLOR = new THREE.Color('#25601a').convertSRGBToLinear();
 const FAR_HILL_COLOR = new THREE.Color('#a9c9a2').convertSRGBToLinear();
-const SKY_TOP = new THREE.Color('#2f78dd').convertSRGBToLinear();
-const SKY_HORIZON = new THREE.Color('#eef6ff').convertSRGBToLinear();
+const SKY_TOP = new THREE.Color('#1653c9').convertSRGBToLinear();
+const SKY_HORIZON = new THREE.Color('#bfdcff').convertSRGBToLinear();
 const FOG_COLOR = new THREE.Color('#e4eefb').convertSRGBToLinear();
 
 const noise = new ImprovedNoise();
@@ -111,7 +111,7 @@ export default class Hills {
                 uniform vec3 horizonColor;
                 varying float vHeight;
                 void main() {
-                    float t = pow(smoothstep(-0.05, 0.6, vHeight), 0.8);
+                    float t = pow(smoothstep(-0.05, 0.5, vHeight), 0.7);
                     gl_FragColor = vec4(mix(horizonColor, topColor, t), 1.0);
                 }
             `,
@@ -326,9 +326,26 @@ export default class Hills {
     }
 
     setClouds() {
+        // Placed by bearing/elevation from the idle camera so they land in frame.
+        const cam = new THREE.Vector3(-24000, 3600, 24000);
+        const forward = new THREE.Vector3(1, 0, -1).normalize();
+        const right = new THREE.Vector3(1, 0, 1).normalize();
+        const cloudAt = (bearingDeg: number, elevDeg: number, dist: number, count: number, spread: number) => {
+            const b = THREE.MathUtils.degToRad(bearingDeg);
+            const e = THREE.MathUtils.degToRad(elevDeg);
+            const dir = forward.clone().multiplyScalar(Math.cos(b)).add(right.clone().multiplyScalar(Math.sin(b)));
+            const center = cam.clone().add(dir.multiplyScalar(dist * Math.cos(e)));
+            center.y += dist * Math.sin(e);
+            return { center, count, spread };
+        };
         const clusters = [
-            { center: new THREE.Vector3(-60000, 36000, -130000), count: 14, spread: 30000 },
-            { center: new THREE.Vector3(135000, 46000, -55000), count: 26, spread: 58000 },
+            cloudAt(20, 14, 170000, 26, 52000),
+            cloudAt(-17, 12, 190000, 20, 40000),
+            cloudAt(-4, 17, 210000, 16, 34000),
+            cloudAt(8, 9, 260000, 12, 26000),
+            cloudAt(-26, 7, 280000, 12, 28000),
+            cloudAt(13, 20, 150000, 10, 24000),
+            cloudAt(-11, 5, 320000, 10, 30000),
         ];
         const total = clusters.reduce((sum, c) => sum + c.count, 0);
         const geometry = new THREE.PlaneGeometry(1, 1);
@@ -370,8 +387,8 @@ export default class Hills {
 
     setLights() {
         const sun = new THREE.DirectionalLight(
-            new THREE.Color('#fff4d6').convertSRGBToLinear(),
-            2.3
+            new THREE.Color('#ffe9a8').convertSRGBToLinear(),
+            2.4
         );
         sun.position.set(150000, 52000, -70000);
         sun.target.position.set(0, FLOOR_Y, 0);
