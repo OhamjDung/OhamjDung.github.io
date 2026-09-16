@@ -7,6 +7,19 @@ import { CameraKey } from '../Camera/Camera';
 const CAT_SCALE = 1.7;
 // Local hit box (before CAT_SCALE): ~1000 long, 630 tall.
 const HIT_BOX = new THREE.Box3(new THREE.Vector3(-520, 0, -520), new THREE.Vector3(520, 640, 520));
+const DESK_TOP_Y = -445;
+// Patrol loop on the free left half of the desk (desk spans x -3587..2481, z -1146..1639; computer starts near x -770).
+const WAYPOINTS = [
+    new THREE.Vector3(-1500, DESK_TOP_Y, 700),
+    new THREE.Vector3(-2900, DESK_TOP_Y, 900),
+    new THREE.Vector3(-3100, DESK_TOP_Y, -500),
+    new THREE.Vector3(-1900, DESK_TOP_Y, -750),
+    new THREE.Vector3(-1400, DESK_TOP_Y, 100),
+];
+const WALK_SPEED = 320; // units per second
+// Yaw added so the model's nose points along the travel direction.
+const FORWARD_OFFSET = 0;
+const PAUSE_MS = [1800, 4500];
 const FUR_COLOR = new THREE.Color('#e8862a').convertSRGBToLinear();
 
 export default class Cat {
@@ -15,6 +28,10 @@ export default class Cat {
     mixer: THREE.AnimationMixer;
     action: THREE.AnimationAction | undefined;
     petUntil = 0;
+    waypoint = 1;
+    pauseUntil = 0;
+    heading = new THREE.Vector3();
+    yaw = 0;
     button = document.createElement('button');
     bounds = new THREE.Box3();
     corners = Array.from({ length: 8 }, () => new THREE.Vector3());
@@ -37,9 +54,11 @@ export default class Cat {
             }
         });
         scene.scale.setScalar(CAT_SCALE);
-        scene.rotation.y = Math.PI * 0.35;
         this.model.name = 'pettable-cat';
-        this.model.position.set(-1500, -445, 700);
+        this.model.position.copy(WAYPOINTS[0]);
+        this.heading.subVectors(WAYPOINTS[1], WAYPOINTS[0]);
+        this.yaw = Math.atan2(this.heading.x, this.heading.z) + FORWARD_OFFSET;
+        this.model.rotation.y = this.yaw;
         this.model.add(scene);
         this.application.scene.add(this.model);
 
@@ -69,9 +88,28 @@ export default class Cat {
     update() {
         const time = this.application.time.elapsed;
         const affection = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
-        // The bundled clip idles slowly; petting speeds it into a happy wiggle.
-        this.mixer.timeScale = 0.35 + affection * 1.4;
-        this.mixer.update(this.application.time.delta * 0.001);
+        const dt = Math.min(this.application.time.delta, 100) * 0.001;
+        const walking = !affection && time > this.pauseUntil;
+        if (walking) {
+            const target = WAYPOINTS[this.waypoint];
+            this.heading.subVectors(target, this.model.position);
+            const distance = this.heading.length();
+            if (distance < 40) {
+                this.waypoint = (this.waypoint + 1) % WAYPOINTS.length;
+                this.pauseUntil = time + THREE.MathUtils.randFloat(PAUSE_MS[0], PAUSE_MS[1]);
+            } else {
+                this.heading.divideScalar(distance);
+                this.model.position.addScaledVector(this.heading, Math.min(distance, WALK_SPEED * dt));
+                const targetYaw = Math.atan2(this.heading.x, this.heading.z) + FORWARD_OFFSET;
+                let delta = targetYaw - this.yaw;
+                delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+                this.yaw += delta * Math.min(1, dt * 6);
+                this.model.rotation.y = this.yaw;
+            }
+        }
+        // The bundled clip is a stride cycle: run it while walking, crawl while resting, wiggle while petted.
+        this.mixer.timeScale = walking ? 1.1 : 0.25 + affection * 1.5;
+        this.mixer.update(dt);
         this.model.rotation.z = Math.sin(time * 0.006) * affection * 0.06;
         if (!affection) this.button.dataset.petting = 'false';
         const camera = this.application.camera;
