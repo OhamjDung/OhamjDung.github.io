@@ -17,7 +17,9 @@ const SKY_RADIUS = 420000;
 const SUN_DISTANCE = 170000;
 
 // Bearing is degrees right of the idle camera's forward; elevation is degrees above the horizon.
-const SUN = { bearing: -14, elevation: 15, intensity: 2.4, color: '#ffba24', glow: '#eee720' };
+const SUN = { bearing: -21, elevation: 15, intensity: 2.4, color: '#ffba24', glow: '#eee720' };
+// The sun circles the scene: bearing advances this many degrees per second and wraps.
+const SUN_ORBIT_SPEED = 0.75;
 const CAM_FORWARD = new THREE.Vector3(1, 0, -1).normalize();
 const CAM_RIGHT = new THREE.Vector3(1, 0, 1).normalize();
 
@@ -445,7 +447,7 @@ export default class Hills {
         if (!params.has('sun') && !params.has('tune')) return;
         const folder = getPanel().addFolder('Sun');
         this.gui = folder;
-        folder.add(SUN, 'bearing', -90, 90, 1).name('bearing (deg right)').onChange(() => this.applySun());
+        folder.add(SUN, 'bearing', -180, 180, 1).name('bearing (deg right)').listen().onChange(() => this.applySun());
         folder.add(SUN, 'intensity', 0, 5, 0.05).onChange(() => this.applySun());
         folder.addColor(SUN, 'color').name('light color').onChange(() => this.applySun());
         folder.addColor(SUN, 'glow').name('glow color').onChange(() => this.applySun());
@@ -460,6 +462,9 @@ export default class Hills {
     }
 
     update() {
+        SUN.bearing += SUN_ORBIT_SPEED * Math.min(this.time.delta, 100) * 0.001;
+        if (SUN.bearing > 180) SUN.bearing -= 360;
+        this.applySun();
         this.grass.update();
         if (!this.clouds) return;
         const t = this.time.elapsed * 0.001;
