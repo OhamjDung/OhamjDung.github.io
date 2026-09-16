@@ -29,9 +29,9 @@ const GRASS = {
     baseColor: '#49601f',
     tipColor1: '#8fe14c',
     tipColor2: '#bf8522',
-    // Camera distance where patches switch to simpler, sparser tuft cards.
-    lod1Distance: 18000,
-    lod2Distance: 42000,
+    // Horizontal distance from the table, independent of camera position.
+    lod1Distance: 26000,
+    lod2Distance: 70000,
 };
 
 export default class FluffyGrass {
@@ -220,13 +220,8 @@ export default class FluffyGrass {
         this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
         this.frustum.setFromProjectionMatrix(this.viewProjection);
         for (const patch of this.patches) {
-            const distance = camera.position.distanceTo(patch.bounds.center);
-            let lod = patch.nearDesk || distance < GRASS.lod1Distance ? 0 : distance < GRASS.lod2Distance ? 1 : 2;
-            // Hysteresis prevents idle motion from repeatedly swapping cards at a boundary.
-            if (!patch.nearDesk && patch.lod >= 0 && lod !== patch.lod) {
-                const boundary = Math.min(lod, patch.lod) === 0 ? GRASS.lod1Distance : GRASS.lod2Distance;
-                if (Math.abs(distance - boundary) < 1800) lod = patch.lod;
-            }
+            const distance = Math.hypot(patch.bounds.center.x, patch.bounds.center.z);
+            const lod = patch.nearDesk || distance < GRASS.lod1Distance ? 0 : distance < GRASS.lod2Distance ? 1 : 2;
             patch.lod = lod;
             const visible = distance - patch.bounds.radius < DRAW_DISTANCE && this.frustum.intersectsSphere(patch.bounds);
             patch.meshes.forEach((mesh, index) => { mesh.visible = visible && index === lod; });
@@ -261,7 +256,7 @@ void main() {
 
     vec4 modelPosition = modelMatrix * instanceMatrix * vec4(position, 1.0);
     vec3 root = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    float fade = 1.0 - smoothstep(uDrawDistance * 0.75, uDrawDistance, distance(cameraPosition, root));
+    float fade = 1.0 - smoothstep(uDrawDistance * 0.75, uDrawDistance, length(root.xz));
     modelPosition.y = mix(root.y, modelPosition.y, fade);
     vGlobalUV = (uTerrainSize - modelPosition.xz) / uTerrainSize;
     vec4 noise = texture2D(uNoiseTexture, vGlobalUV + uTime * 0.001);
