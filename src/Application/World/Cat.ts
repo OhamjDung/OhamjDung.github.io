@@ -14,6 +14,7 @@ export default class Cat {
     model = new THREE.Group();
     inner: THREE.Object3D;
     petUntil = 0;
+    affection = 0;
     button = document.createElement('button');
     bounds = new THREE.Box3();
     localBounds = new THREE.Box3();
@@ -112,16 +113,18 @@ export default class Cat {
     update() {
         const time = this.application.time.elapsed;
         const t = time * 0.001;
-        const affection = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
+        const target = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
+        this.affection = THREE.MathUtils.damp(this.affection, target, 6, Math.min(this.application.time.delta * 0.001, 0.1));
+        const affection = this.affection;
         // Slow sleeping breath; petting adds a contented wriggle.
-        const breath = 1 + Math.sin(t * 1.4) * 0.012 + affection * Math.sin(t * 9) * 0.02;
+        const breath = 1 + Math.sin(t * 1.2) * 0.018 + affection * Math.sin(t * 5) * 0.015;
         this.inner.scale.y = CAT.length * breath;
         this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg) + Math.sin(t * 6) * affection * 0.05;
         this.model.rotation.x = THREE.MathUtils.degToRad(CAT.pitchDeg);
         this.model.rotation.z = THREE.MathUtils.degToRad(CAT.rollDeg);
-        if (!affection) this.button.dataset.petting = 'false';
+        if (!target) this.button.dataset.petting = 'false';
         const camera = this.application.camera;
-        const visible = camera.currentKeyframe === CameraKey.DESK && !camera.freeCam;
+        const visible = (camera.currentKeyframe === CameraKey.DESK || camera.currentKeyframe === CameraKey.IDLE) && !camera.freeCam && !camera.targetKeyframe;
         this.button.hidden = !visible;
         if (!visible) return;
         this.model.updateMatrixWorld(true);

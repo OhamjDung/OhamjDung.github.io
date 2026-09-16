@@ -25,6 +25,8 @@ body {
 .cat-hit-target {position:fixed;z-index:3;background:transparent;border:0;cursor:grab;touch-action:none;border-radius:45%;}
 .cat-hit-target:active {cursor:grabbing;}
 .cat-hit-target:focus-visible {outline:2px dashed #fff;outline-offset:4px;}
+.photo-hit-target {position:fixed;z-index:4;background:transparent;border:0;cursor:pointer;}
+.photo-hit-target:focus-visible {outline:2px dashed #fff;outline-offset:4px;}
 
 .jitter {
     animation-duration: 0.3s;
