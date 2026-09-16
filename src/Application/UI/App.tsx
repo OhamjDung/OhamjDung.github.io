@@ -8,16 +8,32 @@ import './style.css';
 const App = () => {
     const [loading, setLoading] = useState(true);
     const [haze, setHaze] = useState(29);
+    const [stage, setStage] = useState('loading');
 
     useEffect(() => {
         eventBus.on('loadingScreenDone', () => {
             setLoading(false);
         });
+        const observer = new MutationObserver(() => setStage(document.body.dataset.camera || ''));
+        observer.observe(document.body, { attributes: true, attributeFilter: ['data-camera'] });
+        return () => observer.disconnect();
     }, []);
 
     return (
         <div id="ui-app">
             <LoadingScreen />
+            {!loading && stage !== 'idle' && !stage.startsWith('to-') && (
+                <button className="stage-arrow stage-arrow-left" data-scene-control aria-label="Zoom out" title="Zoom out"
+                    onClick={() => eventBus.dispatch('cameraBackward', {})}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4l-8 8 8 8" /></svg>
+                </button>
+            )}
+            {!loading && stage !== 'monitor' && !stage.startsWith('to-') && (
+                <button className="stage-arrow stage-arrow-right" data-scene-control aria-label="Zoom in" title="Zoom in"
+                    onClick={() => eventBus.dispatch('cameraForward', {})}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8" /></svg>
+                </button>
+            )}
             {!loading && <label className="haze-control" data-scene-control>
                 <span>Haze</span>
                 <input aria-label="Haze" type="range" min="0" max="100" value={haze}

@@ -71,8 +71,6 @@ export default class MonitorScreen extends EventEmitter {
                 // @ts-ignore
                 this.inComputer = event.inComputer;
 
-                this.checkScreenEdge(event as MouseEvent);
-
                 this.application.mouse.trigger('mousemove', [event]);
 
                 this.prevInComputer = this.inComputer;
@@ -108,36 +106,6 @@ export default class MonitorScreen extends EventEmitter {
             },
             false
         );
-    }
-
-    // Once the pointer has settled inside the screen, drifting out to its edge steps the camera back.
-    edgeArmed = false;
-    edgeStage: CameraKey | undefined;
-
-    checkScreenEdge(event: MouseEvent) {
-        const stage = this.camera.currentKeyframe;
-        if (this.camera.targetKeyframe || this.mouseClickInProgress ||
-            (stage !== CameraKey.MONITOR && stage !== CameraKey.DESK)) {
-            this.edgeArmed = false;
-            this.edgeStage = stage;
-            return;
-        }
-        if (this.edgeStage !== stage) { this.edgeArmed = false; this.edgeStage = stage; }
-        const screen = document.getElementById('computer-screen');
-        if (!screen || typeof event.clientX !== 'number') return;
-        const rect = screen.getBoundingClientRect();
-        const band = Math.min(rect.width, rect.height) * (stage === CameraKey.MONITOR ? 0.06 : 0.18);
-        const x = event.clientX;
-        const y = event.clientY;
-        const inside = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-        const inner = x > rect.left + band && x < rect.right - band && y > rect.top + band && y < rect.bottom - band;
-        if (inner) { this.edgeArmed = true; return; }
-        if (!this.edgeArmed) return;
-        if (stage === CameraKey.MONITOR ? true : inside) {
-            this.edgeArmed = false;
-            if (stage === CameraKey.MONITOR) this.camera.trigger('leftMonitor');
-            else this.camera.transition(CameraKey.IDLE);
-        }
     }
 
     /**

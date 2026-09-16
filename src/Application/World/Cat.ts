@@ -6,7 +6,7 @@ import GUI from 'lil-gui';
 // "Sleeping Cat On The Bed 1 - 3D scan" by Alben Tan, CC-BY-4.0 — see CREDITS.md.
 const FLOOR_Y = -2984;
 // Tunable with ?cat (or ?tune) in the URL; bake the numbers back here.
-const CAT = { x: -3300, z: 2700, y: FLOOR_Y + 20, length: 1950, yawDeg: 99, pitchDeg: 0, rollDeg: 0 };
+const CAT = { x: -2110, z: 370, y: -470, length: 1850, yawDeg: 25, pitchDeg: 2, rollDeg: 0 };
 
 export default class Cat {
     application = new Application();

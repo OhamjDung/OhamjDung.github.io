@@ -78,6 +78,8 @@ export default class Camera extends EventEmitter {
             if (this.currentKeyframe === CameraKey.MONITOR) this.trigger('leftMonitor');
             else if (this.currentKeyframe === CameraKey.DESK) this.transition(CameraKey.IDLE);
         };
+        UIEventBus.on('cameraForward', forward);
+        UIEventBus.on('cameraBackward', backward);
         document.addEventListener('click', (event) => {
             if (isControl(event.target)) return;
             // Iframe clicks never reach this document, so a click here at max zoom is on the bezel.

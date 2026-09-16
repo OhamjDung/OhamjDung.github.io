@@ -1,39 +1,57 @@
 import * as THREE from 'three';
 import Application from '../Application';
 import Time from '../Utils/Time';
+import GUI from 'lil-gui';
 
 // Ported from thebenezer/FluffyGrass (MIT): instanced tuft cards with an alpha-cut blade texture,
 // noise-driven tip colour and wind, lit as Lambert with directional shadows. See CREDITS.md.
 
 export type HeightFn = (x: number, z: number) => number;
 
-const COUNT = window.innerWidth < 768 ? 12000 : 42000;
-const RADIUS = 62000;
+const MAX_COUNT = window.innerWidth < 768 ? 30000 : 120000;
 const TUFT_SCALE = 2700; // LOD00 card is ~0.13 units tall -> ~350 scene units
-const BASE_COLOR = new THREE.Color('#356d1c').convertSRGBToLinear();
-const TIP_COLOR_1 = new THREE.Color('#a8d150').convertSRGBToLinear();
-const TIP_COLOR_2 = new THREE.Color('#4f9a33').convertSRGBToLinear();
+// Tunable with ?grass (or ?tune); bake the numbers back here.
+const GRASS = {
+    count: window.innerWidth < 768 ? 22000 : 100000,
+    radius: 110000,
+    // Lower = more tufts clustered near the desk, 1 = uniform.
+    falloff: 0.75,
+    tuftScale: 1,
+    windAmp: 55,
+    heightVariation: 90,
+    noiseScale: 6,
+    lightIntensity: 0.95,
+    shadowDarkness: 0.45,
+    baseColor: '#356d1c',
+    tipColor1: '#a8d150',
+    tipColor2: '#4f9a33',
+};
 
 export default class FluffyGrass {
     application = new Application();
     time: Time;
     mesh: THREE.InstancedMesh;
+    heightAt: HeightFn;
+    avoidRadius: number;
+    gui: GUI | undefined;
     uniforms = {
         uTime: { value: 0 },
-        uTerrainSize: { value: RADIUS * 2 },
-        uWindAmp: { value: 55 },
-        uHeightVariation: { value: 90 },
-        uNoiseScale: { value: 6 },
-        uShadowDarkness: { value: 0.45 },
-        uGrassLightIntensity: { value: 0.95 },
-        uBaseColor: { value: BASE_COLOR },
-        uTipColor1: { value: TIP_COLOR_1 },
-        uTipColor2: { value: TIP_COLOR_2 },
+        uTerrainSize: { value: GRASS.radius * 2 },
+        uWindAmp: { value: GRASS.windAmp },
+        uHeightVariation: { value: GRASS.heightVariation },
+        uNoiseScale: { value: GRASS.noiseScale },
+        uShadowDarkness: { value: GRASS.shadowDarkness },
+        uGrassLightIntensity: { value: GRASS.lightIntensity },
+        uBaseColor: { value: new THREE.Color(GRASS.baseColor).convertSRGBToLinear() },
+        uTipColor1: { value: new THREE.Color(GRASS.tipColor1).convertSRGBToLinear() },
+        uTipColor2: { value: new THREE.Color(GRASS.tipColor2).convertSRGBToLinear() },
         uNoiseTexture: { value: null as THREE.Texture | null },
         uGrassAlphaTexture: { value: null as THREE.Texture | null },
     };
 
     constructor(heightAt: HeightFn, avoidRadius: number) {
+        this.heightAt = heightAt;
+        this.avoidRadius = avoidRadius;
         this.time = this.application.time;
         const items = this.application.resources.items;
         const noise = items.texture.grassNoiseTexture;
@@ -62,32 +80,78 @@ export default class FluffyGrass {
             shader.fragmentShader = FRAGMENT;
         };
 
-        this.mesh = new THREE.InstancedMesh(geometry, material, COUNT);
+        this.mesh = new THREE.InstancedMesh(geometry, material, MAX_COUNT);
         this.mesh.receiveShadow = true;
         this.mesh.frustumCulled = false;
+        this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.scatter();
+        this.application.scene.add(this.mesh);
+        this.setGui();
+    }
 
+    // Deterministic placement so slider tweaks re-lay the same field instead of reshuffling it.
+    scatter() {
+        const count = Math.min(GRASS.count, MAX_COUNT);
         const position = new THREE.Vector3();
         const quaternion = new THREE.Quaternion();
         const scale = new THREE.Vector3();
         const matrix = new THREE.Matrix4();
         const euler = new THREE.Euler();
+        let seed = 1337;
+        const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
         let n = 0;
-        while (n < COUNT) {
-            const r = Math.sqrt(Math.random()) * RADIUS;
-            const a = Math.random() * Math.PI * 2;
+        while (n < count) {
+            const r = Math.pow(random(), GRASS.falloff * 0.5) * GRASS.radius;
+            const a = random() * Math.PI * 2;
             const x = Math.cos(a) * r;
             const z = Math.sin(a) * r;
-            if (Math.hypot(x, z) < avoidRadius) continue;
-            position.set(x, heightAt(x, z), z);
-            euler.set(0, Math.random() * Math.PI * 2, 0);
+            const yaw = random() * Math.PI * 2;
+            const s = (0.75 + random() * 0.6) * GRASS.tuftScale;
+            if (Math.hypot(x, z) < this.avoidRadius) continue;
+            position.set(x, this.heightAt(x, z), z);
+            euler.set(0, yaw, 0);
             quaternion.setFromEuler(euler);
-            const s = 0.75 + Math.random() * 0.6;
             scale.set(s, s, s);
             matrix.compose(position, quaternion, scale);
             this.mesh.setMatrixAt(n, matrix);
             n++;
         }
-        this.application.scene.add(this.mesh);
+        this.mesh.count = count;
+        this.mesh.instanceMatrix.needsUpdate = true;
+        this.uniforms.uTerrainSize.value = GRASS.radius * 2;
+    }
+
+    applyUniforms() {
+        this.uniforms.uWindAmp.value = GRASS.windAmp;
+        this.uniforms.uHeightVariation.value = GRASS.heightVariation;
+        this.uniforms.uNoiseScale.value = GRASS.noiseScale;
+        this.uniforms.uGrassLightIntensity.value = GRASS.lightIntensity;
+        this.uniforms.uShadowDarkness.value = GRASS.shadowDarkness;
+        this.uniforms.uBaseColor.value.set(GRASS.baseColor).convertSRGBToLinear();
+        this.uniforms.uTipColor1.value.set(GRASS.tipColor1).convertSRGBToLinear();
+        this.uniforms.uTipColor2.value.set(GRASS.tipColor2).convertSRGBToLinear();
+    }
+
+    setGui() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('grass') && !params.has('tune')) return;
+        this.gui = new GUI({ title: 'Grass' });
+        this.gui.domElement.style.zIndex = '10000';
+        this.gui.domElement.style.top = params.has('tune') ? '420px' : '120px';
+        const layout = () => this.scatter();
+        const shade = () => this.applyUniforms();
+        this.gui.add(GRASS, 'count', 1000, MAX_COUNT, 1000).onChange(layout);
+        this.gui.add(GRASS, 'radius', 20000, 300000, 1000).onChange(layout);
+        this.gui.add(GRASS, 'falloff', 0.3, 1, 0.01).name('spread (1 = even)').onChange(layout);
+        this.gui.add(GRASS, 'tuftScale', 0.3, 4, 0.05).name('tuft size').onChange(layout);
+        this.gui.add(GRASS, 'windAmp', 0, 300, 1).name('wind').onChange(shade);
+        this.gui.add(GRASS, 'heightVariation', 0, 400, 1).name('height variation').onChange(shade);
+        this.gui.add(GRASS, 'noiseScale', 0.5, 20, 0.1).name('patchiness').onChange(shade);
+        this.gui.add(GRASS, 'lightIntensity', 0, 2, 0.01).name('brightness').onChange(shade);
+        this.gui.add(GRASS, 'shadowDarkness', 0, 1, 0.01).name('shadow darkness').onChange(shade);
+        this.gui.addColor(GRASS, 'baseColor').name('base color').onChange(shade);
+        this.gui.addColor(GRASS, 'tipColor1').name('tip color 1').onChange(shade);
+        this.gui.addColor(GRASS, 'tipColor2').name('tip color 2').onChange(shade);
     }
 
     update() {
