@@ -1,8 +1,8 @@
 # Credits
 
-## Sleepy Comfy Cat
+## Sleeping cat
 
-This work is based on "Sleepy Comfy Cat" (https://sketchfab.com/3d-models/sleepy-comfy-cat-2c2baa9563db4f20ba23f869ec3288dc) by Léonard Doye alias Leoskateman (https://sketchfab.com/leoskateman) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+This work is based on "Sleeping Cat On The Bed 1 - 3D scan" (https://sketchfab.com/3d-models/sleeping-cat-on-the-bed-1-3d-scan-ae07a741be6944e8ba5e2657069d3aaf) by Alben Tan (https://sketchfab.com/albentan2012) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
 
 Model file: `static/models/Cat/sleepy_comfy_cat.glb`.
 

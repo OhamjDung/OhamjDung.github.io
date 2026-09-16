@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import Application from '../Application';
 import { CameraKey } from '../Camera/Camera';
 
-// "Sleepy Comfy Cat" by Léonard Doye (Leoskateman), CC-BY-4.0 — see CREDITS.md.
+// "Sleeping Cat On The Bed 1 - 3D scan" by Alben Tan, CC-BY-4.0 — see CREDITS.md.
 const DESK_TOP_Y = -445;
-const CAT_LENGTH = 1150; // longest side after scaling, in scene units
+const CAT_LENGTH = 1250; // longest side after scaling, in scene units
 const CAT_POSITION = new THREE.Vector3(-1850, DESK_TOP_Y, 450);
 const CAT_YAW = Math.PI * 0.15;
 
@@ -33,30 +33,35 @@ export default class Cat {
             }
         });
 
-        // Normalise the Sketchfab export: drop its viewer orientation, then scale and rest on the desk.
-        scene.matrix.identity();
-        scene.matrixAutoUpdate = true;
-        scene.position.set(0, 0, 0);
-        scene.quaternion.identity();
-        scene.scale.setScalar(1);
-        scene.updateMatrixWorld(true);
-        const raw = new THREE.Box3().setFromObject(scene);
+        // Normalise the export: a sleeping cat is flat, so its thinnest axis must point up. Then scale
+        // to CAT_LENGTH and drop it so its underside sits exactly on the desk top.
+        const holder = new THREE.Group();
+        holder.add(scene);
+        holder.updateMatrixWorld(true);
+        const raw = new THREE.Box3().setFromObject(holder);
         const size = raw.getSize(new THREE.Vector3());
-        const scale = CAT_LENGTH / Math.max(size.x, size.y, size.z);
-        scene.scale.setScalar(scale);
-        scene.updateMatrixWorld(true);
-        const scaled = new THREE.Box3().setFromObject(scene);
+        if (size.x < size.y && size.x < size.z) holder.rotation.z = Math.PI / 2;
+        else if (size.z < size.y && size.z < size.x) holder.rotation.x = -Math.PI / 2;
+        holder.updateMatrixWorld(true);
+        const upright = new THREE.Box3().setFromObject(holder);
+        const uprightSize = upright.getSize(new THREE.Vector3());
+        const scale = CAT_LENGTH / Math.max(uprightSize.x, uprightSize.z);
+        const fitted = new THREE.Group();
+        fitted.add(holder);
+        fitted.scale.setScalar(scale);
+        fitted.updateMatrixWorld(true);
+        const scaled = new THREE.Box3().setFromObject(fitted);
         const center = scaled.getCenter(new THREE.Vector3());
-        scene.position.set(-center.x, -scaled.min.y, -center.z);
-        this.inner = scene;
+        fitted.position.set(-center.x, -scaled.min.y, -center.z);
+        this.inner = fitted;
 
         this.model.name = 'pettable-cat';
         this.model.position.copy(CAT_POSITION);
         this.model.rotation.y = CAT_YAW;
-        this.model.add(scene);
+        this.model.add(this.inner);
         this.application.scene.add(this.model);
         this.model.updateMatrixWorld(true);
-        this.localBounds.setFromObject(scene).applyMatrix4(this.model.matrixWorld.clone().invert());
+        this.localBounds.setFromObject(this.inner).applyMatrix4(this.model.matrixWorld.clone().invert());
 
         // A projected hit area supports mouse strokes, touch, and keyboard activation.
         this.button.type = 'button';

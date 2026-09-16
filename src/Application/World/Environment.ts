@@ -53,6 +53,20 @@ export default class Environment {
             desk.castShadow = true;
         }
         this.scene.add(model);
+        this.addDeskShadowCatcher();
+    }
+
+    // The baked desk is unlit, so an invisible plane on its top catches the cat/monitor shadows.
+    addDeskShadowCatcher() {
+        const catcher = new THREE.Mesh(
+            new THREE.PlaneGeometry(6070, 2790),
+            new THREE.ShadowMaterial({ opacity: 0.38, transparent: true })
+        );
+        catcher.rotation.x = -Math.PI / 2;
+        // Desk top spans x -3587..2481, z -1146..1639 at y -452.
+        catcher.position.set(-553, -449, 246);
+        catcher.receiveShadow = true;
+        this.scene.add(catcher);
     }
 
     update() {}
