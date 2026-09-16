@@ -51,6 +51,10 @@ fs.mkdirSync('qa', { recursive: true });
             if (name === 'desktop') await page.mouse.click(20, 100);
             else await page.mouse.wheel(0, 120);
             await page.waitForFunction(() => document.body.dataset.camera === 'idle');
+            const frame = page.frameLocator('#computer-screen');
+            assert.equal(await frame.locator('.desktop').getAttribute('data-started'), 'false', 'Wide view stays asleep');
+            await page.waitForFunction(() => [...document.querySelectorAll('#monitor-videos video')].every(video => !video.paused && video.readyState >= 2));
+            assert.equal(await page.locator('#monitor-videos video').count(), 2, 'Both monitor static layers are restored');
             await page.screenshot({ path: `qa/${name}-wide.png` });
             const canvas = page.locator('#webgl canvas');
             const pixels = await canvas.screenshot();
@@ -61,6 +65,8 @@ fs.mkdirSync('qa', { recursive: true });
             await page.mouse.move(viewport.width / 2, viewport.height / 2);
             await page.mouse.wheel(0, 160);
             await page.waitForFunction(() => document.body.dataset.camera === 'desk');
+            await frame.locator('.desktop[data-started="true"][data-section="about"]').waitFor();
+            await page.waitForTimeout(1000);
             await page.screenshot({ path: `qa/${name}-desk.png` });
             await page.getByRole('button', { name: 'Pet cat' }).click();
             assert.equal(await page.locator('body').getAttribute('data-camera'), 'desk', 'Petting does not change camera');
@@ -75,19 +81,28 @@ fs.mkdirSync('qa', { recursive: true });
             await page.mouse.move(viewport.width / 2, viewport.height / 2);
             await page.mouse.wheel(0, 160);
             await page.waitForFunction(() => document.body.dataset.camera === 'monitor');
-            const frame = page.frameLocator('#computer-screen');
-            assert.equal(await frame.locator('.desktop').getAttribute('data-started'), 'false');
-            await page.screenshot({ path: `qa/${name}-monitor-black.png` });
-            await frame.locator('.desktop').hover({ position: { x: 240, y: 300 } });
-            await page.mouse.wheel(0, 140);
+            assert.equal(await frame.locator('.desktop').getAttribute('data-started'), 'true');
             await frame.locator('.desktop[data-section="about"]').waitFor();
             await frame.locator('#window-about[data-visible="true"]').waitFor();
             await page.waitForTimeout(1200);
             assert(await frame.locator('#window-about').evaluate(element => Number(getComputedStyle(element).opacity) > 0.98), 'About window has opened');
             await page.screenshot({ path: `qa/${name}-monitor-about.png` });
+            // Exercise the state handler independently of CSS3D iframe hit-test rounding.
+            await frame.locator('[data-task="projects"]').evaluate(button => button.click());
+            await frame.locator('.desktop[data-section="projects"]').waitFor();
+            await page.evaluate(() => {
+                const screen = document.getElementById('computer-screen');
+                screen.contentWindow.postMessage({type:'wake-desktop'}, new URL(screen.src).origin);
+                screen.contentWindow.postMessage({type:'wake-desktop'}, new URL(screen.src).origin);
+            });
+            await page.waitForTimeout(750);
+            assert.equal(await frame.locator('.desktop').getAttribute('data-section'), 'projects', 'Repeated wake does not reset the current section');
+            // A reloaded/late iframe must wake even though the camera is already at max zoom.
+            await page.locator('#computer-screen').evaluate(screen => { screen.src = screen.src; });
+            await frame.locator('.desktop[data-started="true"][data-section="about"]').waitFor();
             assert.deepEqual(startup, [], 'Original startup audio is not requested');
             assert.deepEqual(errors, [], 'No runtime or WebGL errors');
-            console.log(`${name}: black start, story scroll, content scroll isolation, click/wheel Start, two zoom stages, animated canvas, petting, haze and embedded desktop passed`);
+            console.log(`${name}: standalone black start, monitor effects, medium-zoom wake, max-zoom reload recovery, idempotent wake, story scroll, canvas, petting and haze passed`);
             if (name === 'mobile') {
                 await page.reload({ waitUntil: 'domcontentloaded' });
                 await page.waitForFunction(() => {

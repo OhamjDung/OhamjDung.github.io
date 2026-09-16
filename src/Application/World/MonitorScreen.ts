@@ -184,6 +184,16 @@ export default class MonitorScreen extends EventEmitter {
         iframe.allow = 'autoplay';
         const startIntro = () =>
             iframe.contentWindow?.postMessage({ type: 'start-intro' }, '*');
+        const wakeDesktop = () => {
+            const stage = this.camera.targetKeyframe || this.camera.currentKeyframe;
+            if (stage === CameraKey.DESK || stage === CameraKey.MONITOR) {
+                iframe.contentWindow?.postMessage({ type: 'wake-desktop' }, new URL(iframe.src).origin);
+            }
+        };
+        this.camera.on('stageChanged', wakeDesktop);
+        window.addEventListener('message', (event) => {
+            if (event.source === iframe.contentWindow && event.origin === new URL(iframe.src).origin && event.data?.type === 'desktop-ready') wakeDesktop();
+        });
         this.camera.on('enterMonitor', startIntro);
         // Replaying the intro while already zoomed in has no enterMonitor to wait for.
         window.addEventListener('message', (event) => {
@@ -253,17 +263,37 @@ export default class MonitorScreen extends EventEmitter {
      */
     createTextureLayers() {
         const textures = this.resources.items.texture;
+        this.getVideoTextures('video-1');
+        this.getVideoTextures('video-2');
 
         // Scale factor to multiply depth offset by
         const scaleFactor = 4;
 
         // Construct the texture layers
         const layers = {
+            smudge: {
+                texture: textures.monitorSmudgeTexture,
+                blending: THREE.AdditiveBlending,
+                opacity: 0.12,
+                offset: 24,
+            },
             innerShadow: {
                 texture: textures.monitorShadowTexture,
                 blending: THREE.NormalBlending,
                 opacity: 1,
                 offset: 5,
+            },
+            video: {
+                texture: this.videoTextures['video-1'],
+                blending: THREE.AdditiveBlending,
+                opacity: 0.5,
+                offset: 10,
+            },
+            video2: {
+                texture: this.videoTextures['video-2'],
+                blending: THREE.AdditiveBlending,
+                opacity: 0.1,
+                offset: 15,
             },
         };
 

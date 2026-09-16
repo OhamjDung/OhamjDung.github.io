@@ -122,6 +122,7 @@ export default class Camera extends EventEmitter {
         this.currentKeyframe = undefined;
         this.targetKeyframe = key;
         document.body.dataset.camera = `to-${key}`;
+        this.trigger('stageChanged', [key]);
         const screen = document.getElementById('computer-screen');
         if (screen) screen.style.pointerEvents = 'none';
 
