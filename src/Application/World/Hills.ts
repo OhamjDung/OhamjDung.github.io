@@ -4,13 +4,14 @@ import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import Application from '../Application';
 import Camera from '../Camera/Camera';
 import Time from '../Utils/Time';
+import UIEventBus from '../UI/EventBus';
 
 // Scene units are ~cm; the desk sits at the origin with its floor near y = -2984.
 const FLOOR_Y = -2984;
 const TERRAIN_SIZE = 720000;
 const TERRAIN_SEGMENTS = 360;
-const GRASS_COUNT = 120000;
-const GRASS_RADIUS = 150000;
+const GRASS_COUNT = window.innerWidth < 768 ? 65000 : 210000;
+const GRASS_RADIUS = 75000;
 const DESK_PAD_RADIUS = 7000;
 const SKY_RADIUS = 420000;
 const SUN_DISTANCE = 170000;
@@ -87,6 +88,7 @@ export default class Hills {
     clouds: THREE.InstancedMesh;
     grass: THREE.Mesh;
     grassUniforms: { uTime: THREE.IUniform<number> };
+    haze = { value: 0.45 };
     sun: THREE.DirectionalLight;
     sunDisc: THREE.Sprite;
     sunGlow: THREE.Sprite;
@@ -109,6 +111,19 @@ export default class Hills {
         this.setSunDisc();
         this.setGui();
         this.enableShadowCasters();
+        this.setHaze(45);
+        UIEventBus.on('hazeChange', (value: number) => this.setHaze(value));
+    }
+
+    setHaze(value: number) {
+        this.haze.value = THREE.MathUtils.clamp(value / 100, 0, 1);
+        const density = this.haze.value * 0.000028;
+        (this.scene.fog as THREE.FogExp2).density = density;
+        (this.grass.material as THREE.ShaderMaterial).uniforms.fogDensity.value = density;
+        (this.clouds.material as THREE.MeshBasicMaterial).opacity = 1 - this.haze.value * 0.5;
+        this.sunGlow.material.opacity = 1 - this.haze.value * 0.85;
+        this.sunDisc.material.opacity = 1 - this.haze.value * 0.65;
+        document.body.dataset.haze = String(value);
     }
 
     setSky() {
@@ -120,6 +135,8 @@ export default class Hills {
             uniforms: {
                 topColor: { value: SKY_TOP },
                 horizonColor: { value: SKY_HORIZON },
+                uHaze: this.haze,
+                hazeColor: { value: FOG_COLOR },
             },
             vertexShader: `
                 varying float vHeight;
@@ -131,10 +148,12 @@ export default class Hills {
             fragmentShader: `
                 uniform vec3 topColor;
                 uniform vec3 horizonColor;
+                uniform vec3 hazeColor;
+                uniform float uHaze;
                 varying float vHeight;
                 void main() {
                     float t = pow(smoothstep(-0.05, 0.5, vHeight), 0.7);
-                    gl_FragColor = vec4(mix(horizonColor, topColor, t), 1.0);
+                    gl_FragColor = vec4(mix(mix(horizonColor, topColor, t), hazeColor, uHaze * 0.65), 1.0);
                 }
             `,
         });
@@ -181,7 +200,7 @@ export default class Hills {
             color.copy(GRASS_COLOR).lerp(RIDGE_COLOR, sunlit);
             // Wind-swept bands running across the slope.
             const band = Math.sin(x / 2200 + z / 9000 + fbm(x / 20000, z / 20000, 2) * 4);
-            const streak = THREE.MathUtils.smoothstep(band, 0.55, 1) * 0.35 * (1 - sunlit * 0.5);
+            const streak = THREE.MathUtils.smoothstep(band, 0.55, 1) * 0.10 * (1 - sunlit * 0.5);
             color.lerp(SHADOW_GRASS_COLOR, streak);
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
@@ -198,6 +217,18 @@ export default class Hills {
             side: THREE.DoubleSide,
         });
         const terrain = new THREE.Mesh(geometry, material);
+        // Fine, antialiased grain carries the grass texture beyond the blade draw radius.
+        material.onBeforeCompile = (shader) => {
+            shader.vertexShader = 'varying vec3 vMeadow;\n' + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvMeadow = position;');
+            shader.fragmentShader = 'varying vec3 vMeadow;\n' + shader.fragmentShader;
+            shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+                vec2 cell = floor(vMeadow.xz / 45.0);
+                float grain = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+                float detail = 1.0 - smoothstep(50.0, 400.0, length(fwidth(vMeadow.xz)));
+                diffuseColor.rgb *= 1.0 + (grain - 0.5) * 0.3 * detail;
+            `);
+        };
         terrain.receiveShadow = true;
         this.scene.add(terrain);
     }
@@ -214,6 +245,18 @@ export default class Hills {
         blade.setAttribute('uv', new THREE.Float32BufferAttribute([
             0, 0, 1, 0, 0.8, 0.55, 0, 0, 0.8, 0.55, 0.2, 0.55, 0.2, 0.55, 0.8, 0.55, 0.5, 1,
         ], 2));
+        // Three fine blades per tuft give a soft silhouette from every camera angle.
+        const tuft: number[] = [];
+        const original = blade.attributes.position;
+        for (let b = 0; b < 3; b++) {
+            const angle = b * Math.PI * 2 / 3;
+            for (let i = 0; i < original.count; i++) {
+                const x = original.getX(i) + b * 0.18;
+                tuft.push(x * Math.cos(angle), original.getY(i) * (1 - b * 0.15), x * Math.sin(angle));
+            }
+        }
+        blade.setAttribute('position', new THREE.Float32BufferAttribute(tuft, 3));
+        blade.deleteAttribute('uv');
         const geometry = new THREE.InstancedBufferGeometry();
         geometry.index = blade.index;
         geometry.attributes = blade.attributes;
@@ -225,16 +268,16 @@ export default class Hills {
         const maxRidge = 16000;
         let n = 0;
         while (n < GRASS_COUNT) {
-            const r = Math.sqrt(Math.random()) * GRASS_RADIUS;
+            const r = Math.pow(Math.random(), 0.7) * GRASS_RADIUS;
             const a = Math.random() * Math.PI * 2;
-            const x = Math.cos(a) * r;
-            const z = Math.sin(a) * r;
+            const x = Math.cos(a) * r - 8000;
+            const z = Math.sin(a) * r + 10000;
             // Leave the desk pad and the camera's own footprint clear.
-            if (Math.hypot(x, z) < 4200) continue;
+            if (x > -3700 && x < 4900 && z > -1700 && z < 3700) continue;
             const pad = THREE.MathUtils.smoothstep(Math.hypot(x, z), DESK_PAD_RADIUS, DESK_PAD_RADIUS * 2.6);
             const y = FLOOR_Y + terrainHeight(x, z) * pad;
             offsets.set([x, y, z], n * 3);
-            params.set([90 + Math.random() * 110, Math.random() * Math.PI, Math.random() * Math.PI * 2], n * 3);
+            params.set([65 + Math.random() * 135, Math.random() * Math.PI, Math.random() * Math.PI * 2], n * 3);
             shades[n] = THREE.MathUtils.smoothstep((y - FLOOR_Y) / maxRidge, 0.05, 0.9);
             n++;
         }
@@ -258,6 +301,7 @@ export default class Hills {
                 attribute vec3 params;
                 attribute float shade;
                 uniform float uTime;
+                uniform float fogDensity;
                 varying float vShade;
                 varying float vT;
                 varying float vFog;
@@ -268,13 +312,13 @@ export default class Hills {
                     vT = position.y;
                     vShade = shade;
                     float c = cos(rot), s = sin(rot);
-                    vec3 p = vec3(position.x * 18.0, position.y * height, 0.0);
+                    vec3 p = vec3(position.x * 22.0, position.y * height, position.z * 22.0);
                     p = vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z);
                     float sway = sin(uTime * 1.6 + phase + offset.x * 0.0004) * 0.35 * vT * vT * height;
                     p.x += sway;
                     p.z += sway * 0.4;
                     vec4 mv = modelViewMatrix * vec4(p + offset, 1.0);
-                    vFog = 1.0 - clamp(exp(-pow(0.0000040 * -mv.z, 2.0)), 0.0, 1.0);
+                    vFog = 1.0 - clamp(exp(-pow(fogDensity * -mv.z, 2.0)), 0.0, 1.0);
                     gl_Position = projectionMatrix * mv;
                 }
             `,
@@ -288,6 +332,7 @@ export default class Hills {
                 void main() {
                     vec3 color = mix(uBase, uTip, vShade) * (0.85 + 0.25 * vT);
                     gl_FragColor = vec4(mix(color, fogColor, vFog), 1.0);
+                    #include <encodings_fragment>
                 }
             `,
         });

@@ -31,6 +31,27 @@ export default class Environment {
         // The baked backdrop cube is replaced by the procedural hills scene.
         const background = model.getObjectByName('Background');
         if (background) background.visible = false;
+        const desk = model.getObjectByName('desk') as THREE.Mesh;
+        if (desk) {
+            desk.geometry = desk.geometry.clone();
+            desk.geometry.computeVertexNormals();
+            const material = new THREE.MeshStandardMaterial({ map: this.bakedModel.texture, roughness: 0.88 });
+            material.onBeforeCompile = (shader) => {
+                shader.vertexShader = 'varying vec3 vDeskPosition;\nvarying vec3 vDeskNormal;\n' + shader.vertexShader;
+                shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvDeskPosition = position; vDeskNormal = normal;');
+                shader.fragmentShader = 'varying vec3 vDeskPosition;\nvarying vec3 vDeskNormal;\n' + shader.fragmentShader;
+                shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+                    // Replace only the top's baked prop shadows with clean laminate.
+                    if (vDeskPosition.y > -0.67 && vDeskNormal.y > 0.8) {
+                        float grain = sin(vDeskPosition.x * 900.0 + sin(vDeskPosition.z * 25.0)) * 0.006;
+                        diffuseColor.rgb = vec3(0.21, 0.22, 0.22) + grain;
+                    }
+                `);
+            };
+            desk.material = material;
+            desk.receiveShadow = true;
+            desk.castShadow = true;
+        }
         this.scene.add(model);
     }
 

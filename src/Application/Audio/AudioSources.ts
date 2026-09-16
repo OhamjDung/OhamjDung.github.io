@@ -83,10 +83,6 @@ export class AmbienceAudio extends AudioSource {
                     frequency: 1000,
                 },
             });
-            this.manager.playAudio('startup', {
-                volume: 0.4,
-                randDetuneScale: 0,
-            });
         });
     }
 

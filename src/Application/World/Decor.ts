@@ -27,6 +27,10 @@ export default class Decor {
     }
 
     setModel() {
-        this.scene.add(this.bakedModel.getModel());
+        const model = this.bakedModel.getModel();
+        model.traverse((child) => {
+            if (child instanceof THREE.Mesh) child.visible = child.name === 'coffee';
+        });
+        this.scene.add(model);
     }
 }

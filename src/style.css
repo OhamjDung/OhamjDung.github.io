@@ -15,6 +15,15 @@ body {
     outline: none;
 }
 
+.haze-control {position:fixed;top:20px;right:20px;z-index:10001;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ffffff65;border-radius:4px;background:#14251dde;color:#fff;font:14px Arial,sans-serif;pointer-events:auto;max-width:calc(100vw - 40px);box-sizing:border-box;}
+.haze-control input {width:110px;min-width:0;accent-color:#bbd995;cursor:pointer;}
+.haze-control output {width:38px;text-align:right;}
+.haze-control input:focus-visible {outline:2px solid white;outline-offset:4px;}
+.bios-start-button {font:inherit;color:inherit;}
+.cat-hit-target {position:fixed;z-index:3;background:transparent;border:0;cursor:grab;touch-action:none;border-radius:45%;}
+.cat-hit-target:active {cursor:grabbing;}
+.cat-hit-target:focus-visible {outline:2px dashed #fff;outline-offset:4px;}
+
 .jitter {
     animation-duration: 0.3s;
     animation-timing-function: ease-in-out;

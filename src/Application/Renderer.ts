@@ -68,7 +68,7 @@ export default class Renderer {
         this.overlayInstance.domElement.style.position = 'absolute';
         this.overlayInstance.domElement.style.top = '0px';
         this.overlayInstance.domElement.style.mixBlendMode = 'soft-light';
-        this.overlayInstance.domElement.style.opacity = '0.12';
+        this.overlayInstance.domElement.style.display = 'none';
         // this.overlayInstance.domElement.style.mixBlendMode = 'luminosity';
         // this.overlayInstance.domElement.style.opacity = '1';
         this.overlayInstance.domElement.style.pointerEvents = 'none';
@@ -122,7 +122,6 @@ export default class Renderer {
 
         this.instance.render(this.scene, this.camera.instance);
         this.cssInstance.render(this.cssScene, this.camera.instance);
-        this.overlayInstance.render(this.overlayScene, this.camera.instance);
         this.overlay.position.copy(this.camera.instance.position);
     }
 }

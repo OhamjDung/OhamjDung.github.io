@@ -66,22 +66,41 @@ export default class Camera extends EventEmitter {
             orbitControlsStart: new OrbitControlsStart(),
         };
 
-        document.addEventListener('mousedown', (event) => {
+        const isControl = (target: EventTarget | null) => target instanceof Element &&
+            !!target.closest('button,a,input,select,[data-scene-control],#prevent-click,.lil-gui');
+        const forward = () => {
+            if (this.freeCam || this.targetKeyframe) return;
+            if (this.currentKeyframe === CameraKey.IDLE) this.transition(CameraKey.DESK);
+            else if (this.currentKeyframe === CameraKey.DESK) this.trigger('enterMonitor');
+        };
+        document.addEventListener('click', (event) => {
+            if (!isControl(event.target)) forward();
+        });
+        let total = 0;
+        let lastWheel = 0;
+        let consumedGesture = false;
+        document.addEventListener('wheel', (event) => {
+            if (event.ctrlKey || isControl(event.target) || this.freeCam ||
+                this.currentKeyframe === CameraKey.MONITOR) return;
             event.preventDefault();
-            // @ts-ignore
-            if (event.target.id === 'prevent-click') return;
-            // print target and current keyframe
-            if (
-                this.currentKeyframe === CameraKey.IDLE ||
-                this.targetKeyframe === CameraKey.IDLE
-            ) {
-                this.transition(CameraKey.DESK);
-            } else if (
-                this.currentKeyframe === CameraKey.DESK ||
-                this.targetKeyframe === CameraKey.DESK
-            ) {
-                this.transition(CameraKey.IDLE);
-            }
+            const now = performance.now();
+            if (now - lastWheel > 180) { total = 0; consumedGesture = false; }
+            lastWheel = now;
+            if (this.targetKeyframe) { total = 0; consumedGesture = true; return; }
+            if (event.deltaY <= 0 || consumedGesture) { total = 0; return; }
+            total += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
+            if (total > 60) { total = 0; consumedGesture = true; forward(); }
+        }, { passive: false });
+        let touchY = 0;
+        document.addEventListener('touchstart', (event) => { touchY = event.touches[0].clientY; }, { passive: true });
+        document.addEventListener('touchend', (event) => {
+            if (!isControl(event.target) && touchY - event.changedTouches[0].clientY > 60) forward();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (isControl(event.target)) return;
+            if (event.key === 'Escape' && this.currentKeyframe === CameraKey.MONITOR) this.trigger('leftMonitor');
+            else if (event.key === 'Escape' && this.currentKeyframe === CameraKey.DESK) this.transition(CameraKey.IDLE);
+            else if (['ArrowDown', 'PageDown'].includes(event.key)) forward();
         });
 
         this.setPostLoadTransition();
@@ -102,6 +121,9 @@ export default class Camera extends EventEmitter {
 
         this.currentKeyframe = undefined;
         this.targetKeyframe = key;
+        document.body.dataset.camera = `to-${key}`;
+        const screen = document.getElementById('computer-screen');
+        if (screen) screen.style.pointerEvents = 'none';
 
         const keyframe = this.keyframes[key];
 
@@ -111,6 +133,8 @@ export default class Camera extends EventEmitter {
             .onComplete(() => {
                 this.currentKeyframe = key;
                 this.targetKeyframe = undefined;
+                document.body.dataset.camera = key;
+                if (screen) screen.style.pointerEvents = key === CameraKey.MONITOR ? 'auto' : 'none';
                 if (callback) callback();
             });
 

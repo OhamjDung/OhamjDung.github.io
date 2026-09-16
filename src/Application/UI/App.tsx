@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import LoadingScreen from './components/LoadingScreen';
-import HelpPrompt from './components/HelpPrompt';
 import InterfaceUI from './components/InterfaceUI';
 import eventBus from './EventBus';
 import './style.css';
 
 const App = () => {
     const [loading, setLoading] = useState(true);
+    const [haze, setHaze] = useState(45);
 
     useEffect(() => {
         eventBus.on('loadingScreenDone', () => {
@@ -17,8 +17,13 @@ const App = () => {
 
     return (
         <div id="ui-app">
-            {!loading && <HelpPrompt />}
             <LoadingScreen />
+            {!loading && <label className="haze-control" data-scene-control>
+                <span>Haze</span>
+                <input aria-label="Haze" type="range" min="0" max="100" value={haze}
+                    onChange={(event) => { const value = Number(event.target.value); setHaze(value); eventBus.dispatch('hazeChange', value); }} />
+                <output>{haze}%</output>
+            </label>}
         </div>
     );
 };

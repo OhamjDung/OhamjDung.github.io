@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import eventBus from '../EventBus';
 
 type LoadingProps = {};
 
 const LoadingScreen: React.FC<LoadingProps> = () => {
     const [progress, setProgress] = useState(0);
+    const started = useRef(false);
     const [toLoad, setToLoad] = useState(0);
     const [loaded, setLoaded] = useState(0);
     const [overlayOpacity, setLoadingOverlayOpacity] = useState(1);
@@ -85,6 +86,8 @@ const LoadingScreen: React.FC<LoadingProps> = () => {
     }, [webGLError]);
 
     const start = useCallback(() => {
+        if (started.current) return;
+        started.current = true;
         setLoadingOverlayOpacity(0);
         eventBus.dispatch('loadingScreenDone', {});
         const ui = document.getElementById('ui');
@@ -92,6 +95,34 @@ const LoadingScreen: React.FC<LoadingProps> = () => {
             ui.style.pointerEvents = 'none';
         }
     }, []);
+
+    useEffect(() => {
+        if (startPopupOpacity !== 1 || webGLError || overlayOpacity === 0) return;
+        const begin = (event: Event) => {
+            if (event instanceof WheelEvent && (event.ctrlKey || event.deltaY === 0)) return;
+            if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            start();
+        };
+        let touchY: number | null = null;
+        const touchStart = (event: TouchEvent) => { touchY = event.touches[0]?.clientY ?? null; };
+        const touchMove = (event: TouchEvent) => {
+            if (touchY !== null && Math.abs(event.touches[0].clientY - touchY) > 25) begin(event);
+        };
+        window.addEventListener('click', begin, true);
+        window.addEventListener('wheel', begin, { capture: true, passive: false });
+        window.addEventListener('keydown', begin, true);
+        window.addEventListener('touchstart', touchStart, { capture: true, passive: true });
+        window.addEventListener('touchmove', touchMove, { capture: true, passive: false });
+        return () => {
+            window.removeEventListener('click', begin, true);
+            window.removeEventListener('wheel', begin, true);
+            window.removeEventListener('keydown', begin, true);
+            window.removeEventListener('touchstart', touchStart, true);
+            window.removeEventListener('touchmove', touchMove, true);
+        };
+    }, [startPopupOpacity, webGLError, overlayOpacity, start]);
 
     const getSpace = (sourceName: string) => {
         let spaces = '';
@@ -123,6 +154,8 @@ const LoadingScreen: React.FC<LoadingProps> = () => {
         }
         return false;
     };
+
+    if (overlayOpacity === 0) return null;
 
     return (
         <div
@@ -254,9 +287,9 @@ const LoadingScreen: React.FC<LoadingProps> = () => {
                             marginTop: '16px',
                         }}
                     >
-                        <div className="bios-start-button" onClick={start}>
+                        <button type="button" className="bios-start-button" onClick={start}>
                             <p>START</p>
-                        </div>
+                        </button>
                     </div>
                 </div>
             </div>

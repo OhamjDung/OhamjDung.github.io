@@ -80,11 +80,6 @@ const sources: Resource[] = [
         path: 'audio/keyboard/key_6.mp3',
     },
     {
-        name: 'startup',
-        type: 'audio',
-        path: 'audio/startup/startup.mp3',
-    },
-    {
         name: 'office',
         type: 'audio',
         path: 'audio/atmosphere/office.mp3',

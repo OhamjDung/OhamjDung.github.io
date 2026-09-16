@@ -104,7 +104,10 @@ export class DeskKeyframe extends CameraKeyframeInstance {
             0.025;
 
         const aspect = this.sizes.height / this.sizes.width;
-        this.targetPos.z = this.origin.z + aspect * 3000 - 1800;
+        this.targetPos.z = this.sizes.width < 768
+            ? Math.max(this.origin.z, aspect * 7900)
+            : this.origin.z + aspect * 3000 - 1800;
+        if (this.sizes.width < 768) this.targetPos.y = 6500;
 
         this.focalPoint.copy(this.targetFoc);
         this.position.copy(this.targetPos);

@@ -71,27 +71,7 @@ export default class MonitorScreen extends EventEmitter {
                 // @ts-ignore
                 this.inComputer = event.inComputer;
 
-                if (this.inComputer && !this.prevInComputer) {
-                    this.camera.trigger('enterMonitor');
-                }
-
-                if (
-                    !this.inComputer &&
-                    this.prevInComputer &&
-                    !this.mouseClickInProgress
-                ) {
-                    this.camera.trigger('leftMonitor');
-                }
-
-                if (
-                    !this.inComputer &&
-                    this.mouseClickInProgress &&
-                    this.prevInComputer
-                ) {
-                    this.shouldLeaveMonitor = true;
-                } else {
-                    this.shouldLeaveMonitor = false;
-                }
+                // Camera stages are explicit; pointer drift must not interrupt a scroll or drag.
 
                 this.application.mouse.trigger('mousemove', [event]);
 
@@ -139,7 +119,7 @@ export default class MonitorScreen extends EventEmitter {
         container.style.width = this.screenSize.width + 'px';
         container.style.height = this.screenSize.height + 'px';
         container.style.opacity = '1';
-        container.style.background = '#1d2e2f';
+        container.style.background = '#000';
 
         // Create iframe
         const iframe = document.createElement('iframe');
@@ -148,6 +128,8 @@ export default class MonitorScreen extends EventEmitter {
         iframe.onload = () => {
             if (iframe.contentWindow) {
                 window.addEventListener('message', (event) => {
+                    if (event.source !== iframe.contentWindow || event.origin !== new URL(iframe.src).origin) return;
+                    if (!['mousemove', 'mousedown', 'mouseup', 'keydown', 'keyup'].includes(event.data?.type)) return;
                     var evt = new CustomEvent(event.data.type, {
                         bubbles: true,
                         cancelable: false,
@@ -192,6 +174,8 @@ export default class MonitorScreen extends EventEmitter {
         iframe.style.padding = IFRAME_PADDING + 'px';
         iframe.style.boxSizing = 'border-box';
         iframe.style.opacity = '1';
+        iframe.style.background = '#000';
+        iframe.style.pointerEvents = 'none';
         iframe.className = 'jitter';
         iframe.id = 'computer-screen';
         iframe.frameBorder = '0';
@@ -204,6 +188,8 @@ export default class MonitorScreen extends EventEmitter {
         // Replaying the intro while already zoomed in has no enterMonitor to wait for.
         window.addEventListener('message', (event) => {
             if (
+                event.source === iframe.contentWindow &&
+                event.origin === new URL(iframe.src).origin &&
                 event.data?.type === 'request-intro' &&
                 (this.camera.currentKeyframe === CameraKey.MONITOR ||
                     this.camera.targetKeyframe === CameraKey.MONITOR)
@@ -268,37 +254,16 @@ export default class MonitorScreen extends EventEmitter {
     createTextureLayers() {
         const textures = this.resources.items.texture;
 
-        this.getVideoTextures('video-1');
-        this.getVideoTextures('video-2');
-
         // Scale factor to multiply depth offset by
         const scaleFactor = 4;
 
         // Construct the texture layers
         const layers = {
-            smudge: {
-                texture: textures.monitorSmudgeTexture,
-                blending: THREE.AdditiveBlending,
-                opacity: 0.12,
-                offset: 24,
-            },
             innerShadow: {
                 texture: textures.monitorShadowTexture,
                 blending: THREE.NormalBlending,
                 opacity: 1,
                 offset: 5,
-            },
-            video: {
-                texture: this.videoTextures['video-1'],
-                blending: THREE.AdditiveBlending,
-                opacity: 0.5,
-                offset: 10,
-            },
-            video2: {
-                texture: this.videoTextures['video-2'],
-                blending: THREE.AdditiveBlending,
-                opacity: 0.1,
-                offset: 15,
             },
         };
 
