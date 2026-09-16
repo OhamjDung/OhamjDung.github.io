@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import Application from '../Application';
 import { CameraKey } from '../Camera/Camera';
 import GUI from 'lil-gui';
+import getPanel from '../Utils/Panel';
 
 // "Sleeping Cat On The Bed 1 - 3D scan" by Alben Tan, CC-BY-4.0 — see CREDITS.md.
 const FLOOR_Y = -2984;
@@ -93,9 +94,7 @@ export default class Cat {
     setGui() {
         const params = new URLSearchParams(window.location.search);
         if (!params.has('cat') && !params.has('tune')) return;
-        this.gui = new GUI({ title: 'Cat' });
-        this.gui.domElement.style.zIndex = '10000';
-        this.gui.domElement.style.top = '120px';
+        this.gui = getPanel().addFolder('Cat');
         this.gui.add(CAT, 'x', -9000, 6000, 10).onChange(() => this.applyLayout());
         this.gui.add(CAT, 'z', -4000, 9000, 10).onChange(() => this.applyLayout());
         this.gui.add(CAT, 'y', FLOOR_Y - 200, 0, 5).name('y (floor -2984)').onChange(() => this.applyLayout());

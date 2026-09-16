@@ -7,8 +7,6 @@ import './style.css';
 
 const App = () => {
     const [loading, setLoading] = useState(true);
-    const [haze, setHaze] = useState(29);
-    const [sun, setSun] = useState(15);
     const [stage, setStage] = useState('loading');
 
     useEffect(() => {
@@ -35,18 +33,6 @@ const App = () => {
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8" /></svg>
                 </button>
             )}
-            {!loading && <label className="haze-control" data-scene-control>
-                <span>Haze</span>
-                <input aria-label="Haze" type="range" min="0" max="100" value={haze}
-                    onChange={(event) => { const value = Number(event.target.value); setHaze(value); eventBus.dispatch('hazeChange', value); }} />
-                <output>{haze}%</output>
-            </label>}
-            {!loading && <label className="haze-control sun-control" data-scene-control>
-                <span>Sun</span>
-                <input aria-label="Sun height" type="range" min="2" max="80" value={sun}
-                    onChange={(event) => { const value = Number(event.target.value); setSun(value); eventBus.dispatch('sunChange', value); }} />
-                <output>{sun}°</output>
-            </label>}
         </div>
     );
 };

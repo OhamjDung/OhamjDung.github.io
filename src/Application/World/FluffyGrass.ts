@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import Application from '../Application';
 import Time from '../Utils/Time';
 import GUI from 'lil-gui';
+import getPanel from '../Utils/Panel';
 
 // Ported from thebenezer/FluffyGrass (MIT): instanced tuft cards with an alpha-cut blade texture,
 // noise-driven tip colour and wind, lit as Lambert with directional shadows. See CREDITS.md.
@@ -135,9 +136,7 @@ export default class FluffyGrass {
     setGui() {
         const params = new URLSearchParams(window.location.search);
         if (!params.has('grass') && !params.has('tune')) return;
-        this.gui = new GUI({ title: 'Grass' });
-        this.gui.domElement.style.zIndex = '10000';
-        this.gui.domElement.style.top = params.has('tune') ? '420px' : '120px';
+        this.gui = getPanel().addFolder('Grass');
         const layout = () => this.scatter();
         const shade = () => this.applyUniforms();
         this.gui.add(GRASS, 'count', 1000, MAX_COUNT, 1000).onChange(layout);

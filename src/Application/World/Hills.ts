@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import GUI from 'lil-gui';
+import getPanel from '../Utils/Panel';
 import { ImprovedNoise } from 'three/examples/jsm/math/ImprovedNoise.js';
 import Application from '../Application';
 import Camera from '../Camera/Camera';
@@ -111,7 +112,7 @@ export default class Hills {
         this.enableShadowCasters();
         this.setHaze(29);
         UIEventBus.on('hazeChange', (value: number) => this.setHaze(value));
-        UIEventBus.on('sunChange', (value: number) => { SUN.elevation = value; this.applySun(); });
+        this.setScenePanel();
     }
 
     setHaze(value: number) {
@@ -429,15 +430,20 @@ export default class Hills {
         this.applySun();
     }
 
+    setScenePanel() {
+        const panel = getPanel();
+        const scene = { haze: 29 };
+        panel.add(scene, 'haze', 0, 100, 1).name('Haze').onChange((value: number) => this.setHaze(value));
+        panel.add(SUN, 'elevation', 2, 80, 1).name('Sun height').onChange(() => this.applySun());
+    }
+
     setGui() {
-        // Tuning panel only with ?sun in the URL.
+        // Full sun tuning only with ?sun / ?tune in the URL.
         const params = new URLSearchParams(window.location.search);
         if (!params.has('sun') && !params.has('tune')) return;
-        this.gui = new GUI({ title: 'Sun' });
-        this.gui.domElement.style.zIndex = '10000';
-        const folder = this.gui;
+        const folder = getPanel().addFolder('Sun');
+        this.gui = folder;
         folder.add(SUN, 'bearing', -90, 90, 1).name('bearing (deg right)').onChange(() => this.applySun());
-        folder.add(SUN, 'elevation', 2, 80, 1).name('elevation (deg up)').onChange(() => this.applySun());
         folder.add(SUN, 'intensity', 0, 5, 0.05).onChange(() => this.applySun());
         folder.addColor(SUN, 'color').name('light color').onChange(() => this.applySun());
         folder.addColor(SUN, 'glow').name('glow color').onChange(() => this.applySun());
