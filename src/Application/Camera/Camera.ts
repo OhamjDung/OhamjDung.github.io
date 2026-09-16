@@ -80,17 +80,30 @@ export default class Camera extends EventEmitter {
         };
         UIEventBus.on('cameraForward', forward);
         UIEventBus.on('cameraBackward', backward);
+        // Zooming in needs a click on the desk setup itself; sky, hills and grass are tagged scenery.
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        const hitsSetup = (event: MouseEvent) => {
+            pointer.set((event.clientX / this.sizes.width) * 2 - 1, -(event.clientY / this.sizes.height) * 2 + 1);
+            raycaster.setFromCamera(pointer, this.instance);
+            const targets = this.scene.children.filter((child) => !child.userData.scenery);
+            // Raycaster ignores visibility, and the hidden baked backdrop cube encloses the whole scene.
+            const shown = (object: THREE.Object3D | null): boolean => !object || (object.visible && shown(object.parent));
+            return raycaster.intersectObjects(targets, true).some((hit) => shown(hit.object));
+        };
         document.addEventListener('click', (event) => {
             if (isControl(event.target)) return;
-            // Iframe clicks never reach this document, so a click here at max zoom is on the bezel.
-            if (this.currentKeyframe === CameraKey.MONITOR) backward(); else forward();
+            // Iframe clicks never reach this document, so a click here at max zoom is off the computer.
+            if (this.currentKeyframe === CameraKey.MONITOR) backward();
+            else if (hitsSetup(event)) forward();
         });
         let total = 0;
         let lastWheel = 0;
         let consumedGesture = false;
         document.addEventListener('wheel', (event) => {
+            // At max zoom only a scroll down (off the computer; the iframe swallows its own) zooms out.
             if (event.ctrlKey || isControl(event.target) || this.freeCam ||
-                (this.currentKeyframe === CameraKey.MONITOR && event.deltaY >= 0)) return;
+                (this.currentKeyframe === CameraKey.MONITOR && event.deltaY <= 0)) return;
             event.preventDefault();
             const now = performance.now();
             if (now - lastWheel > 180) { total = 0; consumedGesture = false; }
@@ -102,7 +115,8 @@ export default class Camera extends EventEmitter {
             if (Math.abs(total) > 18) {
                 const direction = Math.sign(total);
                 total = 0; consumedGesture = true;
-                if (direction > 0) forward(); else backward();
+                // Scroll up zooms in, scroll down zooms out.
+                if (direction < 0) forward(); else backward();
             }
         }, { passive: false });
         let touchY = 0;
@@ -110,13 +124,15 @@ export default class Camera extends EventEmitter {
         document.addEventListener('touchend', (event) => {
             if (isControl(event.target)) return;
             const delta = touchY - event.changedTouches[0].clientY;
-            if (delta > 60) forward(); else if (delta < -60) backward();
+            // Swipe down (like scrolling up) zooms in, swipe up zooms out.
+            if (delta < -60) forward(); else if (delta > 60) backward();
         });
         document.addEventListener('keydown', (event) => {
             if (isControl(event.target)) return;
             if (event.key === 'Escape' && this.currentKeyframe === CameraKey.MONITOR) this.trigger('leftMonitor');
             else if (event.key === 'Escape' && this.currentKeyframe === CameraKey.DESK) this.transition(CameraKey.IDLE);
-            else if (['ArrowDown', 'PageDown'].includes(event.key)) forward();
+            else if (['ArrowUp', 'PageUp'].includes(event.key)) forward();
+            else if (['ArrowDown', 'PageDown'].includes(event.key)) backward();
         });
 
         this.setPostLoadTransition();

@@ -162,6 +162,7 @@ export default class FluffyGrass {
                 // Three r137 cannot cull instanced bounds; use our padded patch bounds below.
                 mesh.frustumCulled = false;
                 mesh.visible = false;
+                mesh.userData.scenery = true;
                 this.application.scene.add(mesh);
                 this.meshes.push(mesh);
                 return mesh;

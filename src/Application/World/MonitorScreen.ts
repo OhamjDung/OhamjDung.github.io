@@ -127,10 +127,6 @@ export default class MonitorScreen extends EventEmitter {
             if (iframe.contentWindow) {
                 window.addEventListener('message', (event) => {
                     if (event.source !== iframe.contentWindow || event.origin !== new URL(iframe.src).origin) return;
-                    if (event.data?.type === 'room-wheel' && Number.isFinite(event.data.deltaY) && event.data.deltaY < 0) {
-                        iframe.dispatchEvent(new WheelEvent('wheel', { deltaY: event.data.deltaY, bubbles: true, cancelable: true }));
-                        return;
-                    }
                     if (!['mousemove', 'mousedown', 'mouseup', 'keydown', 'keyup'].includes(event.data?.type)) return;
                     var evt = new CustomEvent(event.data.type, {
                         bubbles: true,

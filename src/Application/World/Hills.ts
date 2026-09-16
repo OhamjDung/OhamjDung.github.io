@@ -166,6 +166,7 @@ export default class Hills {
         });
         const sky = new THREE.Mesh(geometry, material);
         sky.position.y = FLOOR_Y;
+        sky.userData.scenery = true;
         this.scene.add(sky);
         this.scene.fog = new THREE.FogExp2(FOG_COLOR.getHex(), 0.0000040);
     }
@@ -237,6 +238,7 @@ export default class Hills {
             `);
         };
         terrain.receiveShadow = true;
+        terrain.userData.scenery = true;
         this.scene.add(terrain);
     }
 
@@ -259,6 +261,7 @@ export default class Hills {
             }
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.set(layer.x, 0, layer.z);
+            mesh.userData.scenery = true;
             this.scene.add(mesh);
         });
     }
@@ -344,6 +347,7 @@ export default class Hills {
         this.clouds.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         // Billboards are re-posed every frame; the static bounding sphere would cull them mid-sky.
         this.clouds.frustumCulled = false;
+        this.clouds.userData.scenery = true;
         this.scene.add(this.clouds);
     }
 
@@ -430,6 +434,7 @@ export default class Hills {
         glow.renderOrder = -1;
         this.sunDisc = disc;
         this.sunGlow = glow;
+        disc.userData.scenery = glow.userData.scenery = true;
         this.scene.add(disc, glow);
         this.applySun();
     }
