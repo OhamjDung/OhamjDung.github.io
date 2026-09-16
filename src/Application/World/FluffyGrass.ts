@@ -26,12 +26,16 @@ const GRASS = {
     baseColor: '#49601f',
     tipColor1: '#8fe14c',
     tipColor2: '#bf8522',
+    // Distance from the desk (scene units) where tufts drop to the 32-tri and 16-tri cards.
+    lod1Distance: 26000,
+    lod2Distance: 70000,
 };
 
 export default class FluffyGrass {
     application = new Application();
     time: Time;
-    mesh: THREE.InstancedMesh;
+    meshes: THREE.InstancedMesh[] = [];
+    get mesh() { return this.meshes[0]; }
     heightAt: HeightFn;
     avoidRadius: number;
     gui: GUI | undefined;
@@ -64,13 +68,18 @@ export default class FluffyGrass {
         this.uniforms.uNoiseTexture.value = noise;
         this.uniforms.uGrassAlphaTexture.value = alpha;
 
-        let geometry: THREE.BufferGeometry | undefined;
-        items.gltfModel.grassTuftModel.scene.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.name.includes('LOD00')) geometry = child.geometry;
+        // LOD00/01/02 cards: 66, 32 and 16 triangles.
+        const geometries: THREE.BufferGeometry[] = [];
+        ['LOD00', 'LOD01', 'LOD02'].forEach((name) => {
+            items.gltfModel.grassTuftModel.scene.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.name.includes(name)) {
+                    const geometry = child.geometry.clone();
+                    geometry.scale(TUFT_SCALE, TUFT_SCALE, TUFT_SCALE);
+                    geometries.push(geometry);
+                }
+            });
         });
-        if (!geometry) throw new Error('grassLODs.glb has no LOD00 mesh');
-        geometry = geometry.clone();
-        geometry.scale(TUFT_SCALE, TUFT_SCALE, TUFT_SCALE);
+        if (geometries.length !== 3) throw new Error('grassLODs.glb is missing LOD meshes');
 
         const material = new THREE.MeshLambertMaterial({
             side: THREE.DoubleSide,
@@ -84,12 +93,15 @@ export default class FluffyGrass {
             shader.fragmentShader = FRAGMENT;
         };
 
-        this.mesh = new THREE.InstancedMesh(geometry, material, MAX_COUNT);
-        this.mesh.receiveShadow = true;
-        this.mesh.frustumCulled = false;
-        this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        this.meshes = geometries.map((geometry) => {
+            const mesh = new THREE.InstancedMesh(geometry, material, MAX_COUNT);
+            mesh.receiveShadow = true;
+            mesh.frustumCulled = false;
+            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            this.application.scene.add(mesh);
+            return mesh;
+        });
         this.scatter();
-        this.application.scene.add(this.mesh);
         this.setGui();
     }
 
@@ -103,6 +115,7 @@ export default class FluffyGrass {
         const euler = new THREE.Euler();
         let seed = 1337;
         const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+        const counts = [0, 0, 0];
         let n = 0;
         while (n < count) {
             const r = Math.pow(random(), GRASS.falloff * 0.5) * GRASS.radius;
@@ -117,11 +130,14 @@ export default class FluffyGrass {
             quaternion.setFromEuler(euler);
             scale.set(s, s, s);
             matrix.compose(position, quaternion, scale);
-            this.mesh.setMatrixAt(n, matrix);
+            const lod = r < GRASS.lod1Distance ? 0 : r < GRASS.lod2Distance ? 1 : 2;
+            this.meshes[lod].setMatrixAt(counts[lod]++, matrix);
             n++;
         }
-        this.mesh.count = count;
-        this.mesh.instanceMatrix.needsUpdate = true;
+        this.meshes.forEach((mesh, i) => {
+            mesh.count = counts[i];
+            mesh.instanceMatrix.needsUpdate = true;
+        });
         this.uniforms.uTerrainSize.value = GRASS.radius * 2;
     }
 
@@ -146,6 +162,8 @@ export default class FluffyGrass {
         this.gui.add(GRASS, 'radius', 20000, 300000, 1000).onChange(layout);
         this.gui.add(GRASS, 'falloff', 0.3, 1, 0.01).name('spread (1 = even)').onChange(layout);
         this.gui.add(GRASS, 'tuftScale', 0.3, 8, 0.05).name('tuft size').onChange(layout);
+        this.gui.add(GRASS, 'lod1Distance', 5000, 150000, 1000).name('LOD1 distance').onChange(layout);
+        this.gui.add(GRASS, 'lod2Distance', 10000, 300000, 1000).name('LOD2 distance').onChange(layout);
         this.gui.add(GRASS, 'windAmp', 0, 600, 1).name('wind').onChange(shade);
         this.gui.add(GRASS, 'heightVariation', 0, 400, 1).name('height variation').onChange(shade);
         this.gui.add(GRASS, 'noiseScale', 0.5, 20, 0.1).name('patchiness').onChange(shade);

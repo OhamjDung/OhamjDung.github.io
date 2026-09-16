@@ -453,7 +453,7 @@ export default class Hills {
 
     enableShadowCasters() {
         this.scene.traverse((child) => {
-            if (child instanceof THREE.Mesh && child !== this.clouds && child !== this.grass.mesh && !child.receiveShadow && !(child instanceof THREE.Sprite)) {
+            if (child instanceof THREE.Mesh && child !== this.clouds && !this.grass.meshes.includes(child as THREE.InstancedMesh) && !child.receiveShadow && !(child instanceof THREE.Sprite)) {
                 child.castShadow = true;
             }
         });
