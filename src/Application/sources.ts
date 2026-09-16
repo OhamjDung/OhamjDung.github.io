@@ -22,7 +22,7 @@ const sources: Resource[] = [
     {
         name: 'catModel',
         type: 'gltfModel',
-        path: 'models/Cat/toon_cat_free.glb',
+        path: 'models/Cat/sleepy_comfy_cat.glb',
     },
     {
         name: 'decorModel',

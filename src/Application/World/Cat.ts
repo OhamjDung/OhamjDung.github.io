@@ -2,38 +2,20 @@ import * as THREE from 'three';
 import Application from '../Application';
 import { CameraKey } from '../Camera/Camera';
 
-// "Toon Cat FREE" by Omabuarts Studio, CC-BY-4.0 — see CREDITS.md.
-// The Sketchfab rig carries a baked x100 scale; the raw cat is ~370 units tall.
-const CAT_SCALE = 1.7;
-// Local hit box (before CAT_SCALE): ~1000 long, 630 tall.
-const HIT_BOX = new THREE.Box3(new THREE.Vector3(-520, 0, -520), new THREE.Vector3(520, 640, 520));
+// "Sleepy Comfy Cat" by Léonard Doye (Leoskateman), CC-BY-4.0 — see CREDITS.md.
 const DESK_TOP_Y = -445;
-// Patrol loop on the free left half of the desk (desk spans x -3587..2481, z -1146..1639; computer starts near x -770).
-const WAYPOINTS = [
-    new THREE.Vector3(-1500, DESK_TOP_Y, 700),
-    new THREE.Vector3(-2900, DESK_TOP_Y, 900),
-    new THREE.Vector3(-3100, DESK_TOP_Y, -500),
-    new THREE.Vector3(-1900, DESK_TOP_Y, -750),
-    new THREE.Vector3(-1400, DESK_TOP_Y, 100),
-];
-const WALK_SPEED = 320; // units per second
-// Yaw added so the model's nose points along the travel direction.
-const FORWARD_OFFSET = 0;
-const PAUSE_MS = [1800, 4500];
-const FUR_COLOR = new THREE.Color('#e8862a').convertSRGBToLinear();
+const CAT_LENGTH = 1150; // longest side after scaling, in scene units
+const CAT_POSITION = new THREE.Vector3(-1850, DESK_TOP_Y, 450);
+const CAT_YAW = Math.PI * 0.15;
 
 export default class Cat {
     application = new Application();
     model = new THREE.Group();
-    mixer: THREE.AnimationMixer;
-    action: THREE.AnimationAction | undefined;
+    inner: THREE.Object3D;
     petUntil = 0;
-    waypoint = 1;
-    pauseUntil = 0;
-    heading = new THREE.Vector3();
-    yaw = 0;
     button = document.createElement('button');
     bounds = new THREE.Box3();
+    localBounds = new THREE.Box3();
     corners = Array.from({ length: 8 }, () => new THREE.Vector3());
 
     constructor() {
@@ -43,30 +25,38 @@ export default class Cat {
             if (child instanceof THREE.Mesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
-                // Skinned bounds stay at the rig origin, so let the renderer skip culling.
-                child.frustumCulled = false;
                 const material = child.material as THREE.MeshStandardMaterial;
-                material.color.copy(FUR_COLOR);
                 if (material.map) material.map.encoding = THREE.sRGBEncoding;
-                material.roughness = 0.9;
+                material.roughness = 0.95;
                 material.metalness = 0;
                 material.needsUpdate = true;
             }
         });
-        scene.scale.setScalar(CAT_SCALE);
+
+        // Normalise the Sketchfab export: drop its viewer orientation, then scale and rest on the desk.
+        scene.matrix.identity();
+        scene.matrixAutoUpdate = true;
+        scene.position.set(0, 0, 0);
+        scene.quaternion.identity();
+        scene.scale.setScalar(1);
+        scene.updateMatrixWorld(true);
+        const raw = new THREE.Box3().setFromObject(scene);
+        const size = raw.getSize(new THREE.Vector3());
+        const scale = CAT_LENGTH / Math.max(size.x, size.y, size.z);
+        scene.scale.setScalar(scale);
+        scene.updateMatrixWorld(true);
+        const scaled = new THREE.Box3().setFromObject(scene);
+        const center = scaled.getCenter(new THREE.Vector3());
+        scene.position.set(-center.x, -scaled.min.y, -center.z);
+        this.inner = scene;
+
         this.model.name = 'pettable-cat';
-        this.model.position.copy(WAYPOINTS[0]);
-        this.heading.subVectors(WAYPOINTS[1], WAYPOINTS[0]);
-        this.yaw = Math.atan2(this.heading.x, this.heading.z) + FORWARD_OFFSET;
-        this.model.rotation.y = this.yaw;
+        this.model.position.copy(CAT_POSITION);
+        this.model.rotation.y = CAT_YAW;
         this.model.add(scene);
         this.application.scene.add(this.model);
-
-        this.mixer = new THREE.AnimationMixer(scene);
-        if (gltf.animations.length) {
-            this.action = this.mixer.clipAction(gltf.animations[0]);
-            this.action.play();
-        }
+        this.model.updateMatrixWorld(true);
+        this.localBounds.setFromObject(scene).applyMatrix4(this.model.matrixWorld.clone().invert());
 
         // A projected hit area supports mouse strokes, touch, and keyboard activation.
         this.button.type = 'button';
@@ -87,37 +77,19 @@ export default class Cat {
 
     update() {
         const time = this.application.time.elapsed;
+        const t = time * 0.001;
         const affection = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
-        const dt = Math.min(this.application.time.delta, 100) * 0.001;
-        const walking = !affection && time > this.pauseUntil;
-        if (walking) {
-            const target = WAYPOINTS[this.waypoint];
-            this.heading.subVectors(target, this.model.position);
-            const distance = this.heading.length();
-            if (distance < 40) {
-                this.waypoint = (this.waypoint + 1) % WAYPOINTS.length;
-                this.pauseUntil = time + THREE.MathUtils.randFloat(PAUSE_MS[0], PAUSE_MS[1]);
-            } else {
-                this.heading.divideScalar(distance);
-                this.model.position.addScaledVector(this.heading, Math.min(distance, WALK_SPEED * dt));
-                const targetYaw = Math.atan2(this.heading.x, this.heading.z) + FORWARD_OFFSET;
-                let delta = targetYaw - this.yaw;
-                delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-                this.yaw += delta * Math.min(1, dt * 6);
-                this.model.rotation.y = this.yaw;
-            }
-        }
-        // The bundled clip is a stride cycle: run it while walking, crawl while resting, wiggle while petted.
-        this.mixer.timeScale = walking ? 1.1 : 0.25 + affection * 1.5;
-        this.mixer.update(dt);
-        this.model.rotation.z = Math.sin(time * 0.006) * affection * 0.06;
+        // Slow sleeping breath; petting adds a contented wriggle.
+        const breath = 1 + Math.sin(t * 1.4) * 0.012 + affection * Math.sin(t * 9) * 0.02;
+        this.inner.scale.y = this.inner.scale.x * breath;
+        this.model.rotation.y = CAT_YAW + Math.sin(t * 6) * affection * 0.05;
         if (!affection) this.button.dataset.petting = 'false';
         const camera = this.application.camera;
         const visible = camera.currentKeyframe === CameraKey.DESK && !camera.freeCam;
         this.button.hidden = !visible;
         if (!visible) return;
         this.model.updateMatrixWorld(true);
-        this.bounds.copy(HIT_BOX).applyMatrix4(this.model.matrixWorld);
+        this.bounds.copy(this.localBounds).applyMatrix4(this.model.matrixWorld);
         let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
         this.corners.forEach((point, i) => {
             point.set(i & 1 ? this.bounds.max.x : this.bounds.min.x,

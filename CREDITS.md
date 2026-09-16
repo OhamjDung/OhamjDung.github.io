@@ -1,10 +1,10 @@
 # Credits
 
-## Toon Cat
+## Sleepy Comfy Cat
 
-This work is based on "Toon Cat FREE" (https://sketchfab.com/3d-models/toon-cat-free-b2bd1ee7858444bda366110a2d960386) by Omabuarts Studio (https://sketchfab.com/omabuarts) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+This work is based on "Sleepy Comfy Cat" (https://sketchfab.com/3d-models/sleepy-comfy-cat-2c2baa9563db4f20ba23f869ec3288dc) by Léonard Doye alias Leoskateman (https://sketchfab.com/leoskateman) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
 
-Model file: `static/models/Cat/toon_cat_free.glb`, obtained via https://github.com/DevTakao/threejs-cat.
+Model file: `static/models/Cat/sleepy_comfy_cat.glb`.
 
 ## Room scene
 
