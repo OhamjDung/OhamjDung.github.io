@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import Application from '../Application';
 import { CameraKey } from '../Camera/Camera';
+import GUI from 'lil-gui';
 
 // "Sleeping Cat On The Bed 1 - 3D scan" by Alben Tan, CC-BY-4.0 — see CREDITS.md.
-const DESK_TOP_Y = -445;
-const CAT_LENGTH = 1250; // longest side after scaling, in scene units
-const CAT_POSITION = new THREE.Vector3(-1850, DESK_TOP_Y, 450);
-const CAT_YAW = Math.PI * 0.15;
+const FLOOR_Y = -2984;
+// Tunable with ?cat (or ?tune) in the URL; bake the numbers back here.
+const CAT = { x: -3300, z: 2700, y: FLOOR_Y + 20, length: 1950, yawDeg: 99 };
 
 export default class Cat {
     application = new Application();
@@ -17,6 +17,8 @@ export default class Cat {
     bounds = new THREE.Box3();
     localBounds = new THREE.Box3();
     corners = Array.from({ length: 8 }, () => new THREE.Vector3());
+    baseLength = 1;
+    gui: GUI | undefined;
 
     constructor() {
         const gltf = this.application.resources.items.gltfModel.catModel;
@@ -45,23 +47,23 @@ export default class Cat {
         holder.updateMatrixWorld(true);
         const upright = new THREE.Box3().setFromObject(holder);
         const uprightSize = upright.getSize(new THREE.Vector3());
-        const scale = CAT_LENGTH / Math.max(uprightSize.x, uprightSize.z);
+        // Unit-length fit; CAT.length scales the whole model from here.
+        this.baseLength = Math.max(uprightSize.x, uprightSize.z);
         const fitted = new THREE.Group();
         fitted.add(holder);
-        fitted.scale.setScalar(scale);
+        fitted.scale.setScalar(1 / this.baseLength);
         fitted.updateMatrixWorld(true);
-        const scaled = new THREE.Box3().setFromObject(fitted);
-        const center = scaled.getCenter(new THREE.Vector3());
-        fitted.position.set(-center.x, -scaled.min.y, -center.z);
-        this.inner = fitted;
+        const unit = new THREE.Box3().setFromObject(fitted);
+        const center = unit.getCenter(new THREE.Vector3());
+        fitted.position.set(-center.x, -unit.min.y, -center.z);
+        this.inner = new THREE.Group();
+        this.inner.add(fitted);
 
         this.model.name = 'pettable-cat';
-        this.model.position.copy(CAT_POSITION);
-        this.model.rotation.y = CAT_YAW;
         this.model.add(this.inner);
         this.application.scene.add(this.model);
-        this.model.updateMatrixWorld(true);
-        this.localBounds.setFromObject(this.inner).applyMatrix4(this.model.matrixWorld.clone().invert());
+        this.applyLayout();
+        this.setGui();
 
         // A projected hit area supports mouse strokes, touch, and keyboard activation.
         this.button.type = 'button';
@@ -75,6 +77,27 @@ export default class Cat {
         document.body.appendChild(this.button);
     }
 
+    applyLayout() {
+        this.model.position.set(CAT.x, CAT.y, CAT.z);
+        this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg);
+        this.inner.scale.setScalar(CAT.length);
+        this.model.updateMatrixWorld(true);
+        this.localBounds.setFromObject(this.inner).applyMatrix4(this.model.matrixWorld.clone().invert());
+    }
+
+    setGui() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('cat') && !params.has('tune')) return;
+        this.gui = new GUI({ title: 'Cat' });
+        this.gui.domElement.style.zIndex = '10000';
+        this.gui.domElement.style.top = '120px';
+        this.gui.add(CAT, 'x', -9000, 6000, 10).onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'z', -4000, 9000, 10).onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'y', FLOOR_Y - 200, 0, 5).name('y (floor -2984)').onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'length', 500, 5000, 10).name('size').onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'yawDeg', -180, 180, 1).name('rotation (deg)').onChange(() => this.applyLayout());
+    }
+
     pet() {
         this.petUntil = this.application.time.elapsed + 2200;
         this.button.dataset.petting = 'true';
@@ -86,8 +109,8 @@ export default class Cat {
         const affection = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
         // Slow sleeping breath; petting adds a contented wriggle.
         const breath = 1 + Math.sin(t * 1.4) * 0.012 + affection * Math.sin(t * 9) * 0.02;
-        this.inner.scale.y = this.inner.scale.x * breath;
-        this.model.rotation.y = CAT_YAW + Math.sin(t * 6) * affection * 0.05;
+        this.inner.scale.y = CAT.length * breath;
+        this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg) + Math.sin(t * 6) * affection * 0.05;
         if (!affection) this.button.dataset.petting = 'false';
         const camera = this.application.camera;
         const visible = camera.currentKeyframe === CameraKey.DESK && !camera.freeCam;
