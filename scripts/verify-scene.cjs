@@ -11,6 +11,7 @@ fs.mkdirSync('qa', { recursive: true });
     const browser = await chromium.launch({ headless: true, channel: 'chromium' });
     try {
         for (const [name, viewport] of Object.entries({ desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } })) {
+            if (process.env.VIEWPORT && process.env.VIEWPORT !== name) continue;
             const context = await browser.newContext({ viewport, hasTouch: name === 'mobile', isMobile: name === 'mobile' });
             const page = await context.newPage();
             page.setDefaultTimeout(90000);
@@ -97,12 +98,40 @@ fs.mkdirSync('qa', { recursive: true });
             });
             await page.waitForTimeout(750);
             assert.equal(await frame.locator('.desktop').getAttribute('data-section'), 'projects', 'Repeated wake does not reset the current section');
+            await frame.locator('.project-content').dispatchEvent('wheel', { deltaY: -180, bubbles: true });
+            await page.waitForTimeout(400);
+            assert.equal(await page.locator('body').getAttribute('data-camera'), 'monitor', 'Scrolling up inside a window does not zoom');
+            const screenBox = await page.locator('#computer-screen').boundingBox();
+            await page.mouse.move(screenBox.x + screenBox.width * 0.25, screenBox.y + screenBox.height * 0.08);
+            await page.mouse.wheel(0, -160);
+            // Keep sending momentum past the transition; one gesture must remain one step.
+            for (let i = 0; i < 20; i++) {
+                await page.waitForTimeout(80);
+                await page.mouse.wheel(0, -20);
+            }
+            await page.waitForFunction(() => document.body.dataset.camera === 'desk');
+            await page.screenshot({path: `qa/${name}-zoom-out-medium.png`});
+            assert.equal(await frame.locator('.desktop').getAttribute('data-section'), 'projects', 'Zooming out preserves the section');
+            await page.waitForTimeout(300);
+            await page.mouse.move(20, viewport.height / 2);
+            await page.mouse.wheel(0, -160);
+            await page.waitForFunction(() => document.body.dataset.camera === 'idle');
+            await page.screenshot({path: `qa/${name}-zoom-out-wide.png`});
+            await page.waitForTimeout(300);
+            await page.mouse.wheel(0, -160);
+            await page.waitForTimeout(400);
+            assert.equal(await page.locator('body').getAttribute('data-camera'), 'idle', 'Wide is the zoom-out boundary');
+            await page.mouse.wheel(0, 160);
+            await page.waitForFunction(() => document.body.dataset.camera === 'desk');
+            await page.waitForTimeout(300);
+            await page.mouse.wheel(0, 160);
+            await page.waitForFunction(() => document.body.dataset.camera === 'monitor');
             // A reloaded/late iframe must wake even though the camera is already at max zoom.
             await page.locator('#computer-screen').evaluate(screen => { screen.src = screen.src; });
             await frame.locator('.desktop[data-started="true"][data-section="about"]').waitFor();
             assert.deepEqual(startup, [], 'Original startup audio is not requested');
             assert.deepEqual(errors, [], 'No runtime or WebGL errors');
-            console.log(`${name}: standalone black start, monitor effects, medium-zoom wake, max-zoom reload recovery, idempotent wake, story scroll, canvas, petting and haze passed`);
+            console.log(`${name}: bidirectional zoom, momentum guard, content scroll isolation, monitor effects, wake recovery, story scroll, canvas, petting and haze passed`);
             if (name === 'mobile') {
                 await page.reload({ waitUntil: 'domcontentloaded' });
                 await page.waitForFunction(() => {
@@ -121,7 +150,18 @@ fs.mkdirSync('qa', { recursive: true });
                 await page.waitForFunction(() => document.body.dataset.camera === 'desk');
                 await swipe();
                 await page.waitForFunction(() => document.body.dataset.camera === 'monitor');
-                console.log('mobile: native touch swipes start and advance both camera stages');
+                const bounds = await page.locator('#computer-screen').boundingBox();
+                const swipeDown = async (x, y) => {
+                    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+                    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + 130 }] });
+                    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                };
+                await swipeDown(bounds.x + bounds.width * 0.25, bounds.y + bounds.height * 0.08);
+                await page.waitForFunction(() => document.body.dataset.camera === 'desk');
+                await page.waitForTimeout(300);
+                await swipeDown(20, 650);
+                await page.waitForFunction(() => document.body.dataset.camera === 'idle');
+                console.log('mobile: native touch swipes start, zoom in and zoom out through both stages');
             }
             await context.close();
         }

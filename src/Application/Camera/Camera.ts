@@ -73,6 +73,11 @@ export default class Camera extends EventEmitter {
             if (this.currentKeyframe === CameraKey.IDLE) this.transition(CameraKey.DESK);
             else if (this.currentKeyframe === CameraKey.DESK) this.trigger('enterMonitor');
         };
+        const backward = () => {
+            if (this.freeCam || this.targetKeyframe) return;
+            if (this.currentKeyframe === CameraKey.MONITOR) this.trigger('leftMonitor');
+            else if (this.currentKeyframe === CameraKey.DESK) this.transition(CameraKey.IDLE);
+        };
         document.addEventListener('click', (event) => {
             if (!isControl(event.target)) forward();
         });
@@ -81,20 +86,27 @@ export default class Camera extends EventEmitter {
         let consumedGesture = false;
         document.addEventListener('wheel', (event) => {
             if (event.ctrlKey || isControl(event.target) || this.freeCam ||
-                this.currentKeyframe === CameraKey.MONITOR) return;
+                (this.currentKeyframe === CameraKey.MONITOR && event.deltaY >= 0)) return;
             event.preventDefault();
             const now = performance.now();
             if (now - lastWheel > 180) { total = 0; consumedGesture = false; }
             lastWheel = now;
             if (this.targetKeyframe) { total = 0; consumedGesture = true; return; }
-            if (event.deltaY <= 0 || consumedGesture) { total = 0; return; }
+            if (event.deltaY === 0 || consumedGesture) { total = 0; return; }
+            if (Math.sign(total) !== Math.sign(event.deltaY)) total = 0;
             total += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
-            if (total > 60) { total = 0; consumedGesture = true; forward(); }
+            if (Math.abs(total) > 60) {
+                const direction = Math.sign(total);
+                total = 0; consumedGesture = true;
+                if (direction > 0) forward(); else backward();
+            }
         }, { passive: false });
         let touchY = 0;
         document.addEventListener('touchstart', (event) => { touchY = event.touches[0].clientY; }, { passive: true });
         document.addEventListener('touchend', (event) => {
-            if (!isControl(event.target) && touchY - event.changedTouches[0].clientY > 60) forward();
+            if (isControl(event.target)) return;
+            const delta = touchY - event.changedTouches[0].clientY;
+            if (delta > 60) forward(); else if (delta < -60) backward();
         });
         document.addEventListener('keydown', (event) => {
             if (isControl(event.target)) return;
