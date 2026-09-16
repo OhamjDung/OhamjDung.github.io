@@ -6,7 +6,7 @@ import GUI from 'lil-gui';
 // "Sleeping Cat On The Bed 1 - 3D scan" by Alben Tan, CC-BY-4.0 — see CREDITS.md.
 const FLOOR_Y = -2984;
 // Tunable with ?cat (or ?tune) in the URL; bake the numbers back here.
-const CAT = { x: -3300, z: 2700, y: FLOOR_Y + 20, length: 1950, yawDeg: 99 };
+const CAT = { x: -3300, z: 2700, y: FLOOR_Y + 20, length: 1950, yawDeg: 99, pitchDeg: 0, rollDeg: 0 };
 
 export default class Cat {
     application = new Application();
@@ -79,7 +79,12 @@ export default class Cat {
 
     applyLayout() {
         this.model.position.set(CAT.x, CAT.y, CAT.z);
-        this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg);
+        this.model.rotation.set(
+            THREE.MathUtils.degToRad(CAT.pitchDeg),
+            THREE.MathUtils.degToRad(CAT.yawDeg),
+            THREE.MathUtils.degToRad(CAT.rollDeg),
+            'YXZ'
+        );
         this.inner.scale.setScalar(CAT.length);
         this.model.updateMatrixWorld(true);
         this.localBounds.setFromObject(this.inner).applyMatrix4(this.model.matrixWorld.clone().invert());
@@ -95,7 +100,9 @@ export default class Cat {
         this.gui.add(CAT, 'z', -4000, 9000, 10).onChange(() => this.applyLayout());
         this.gui.add(CAT, 'y', FLOOR_Y - 200, 0, 5).name('y (floor -2984)').onChange(() => this.applyLayout());
         this.gui.add(CAT, 'length', 500, 5000, 10).name('size').onChange(() => this.applyLayout());
-        this.gui.add(CAT, 'yawDeg', -180, 180, 1).name('rotation (deg)').onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'yawDeg', -180, 180, 1).name('rotate Y / yaw (deg)').onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'pitchDeg', -180, 180, 1).name('rotate X / pitch (deg)').onChange(() => this.applyLayout());
+        this.gui.add(CAT, 'rollDeg', -180, 180, 1).name('rotate Z / roll (deg)').onChange(() => this.applyLayout());
     }
 
     pet() {
@@ -111,6 +118,8 @@ export default class Cat {
         const breath = 1 + Math.sin(t * 1.4) * 0.012 + affection * Math.sin(t * 9) * 0.02;
         this.inner.scale.y = CAT.length * breath;
         this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg) + Math.sin(t * 6) * affection * 0.05;
+        this.model.rotation.x = THREE.MathUtils.degToRad(CAT.pitchDeg);
+        this.model.rotation.z = THREE.MathUtils.degToRad(CAT.rollDeg);
         if (!affection) this.button.dataset.petting = 'false';
         const camera = this.application.camera;
         const visible = camera.currentKeyframe === CameraKey.DESK && !camera.freeCam;
