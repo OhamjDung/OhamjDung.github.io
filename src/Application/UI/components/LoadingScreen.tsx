@@ -30,7 +30,10 @@ const LoadingScreen: React.FC<LoadingProps> = () => {
         }
     };
 
-    window.addEventListener('resize', onResize);
+    useEffect(() => {
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
