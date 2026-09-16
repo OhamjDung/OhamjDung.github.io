@@ -116,10 +116,10 @@ export default class Cat {
         const target = THREE.MathUtils.clamp((this.petUntil - time) / 650, 0, 1);
         this.affection = THREE.MathUtils.damp(this.affection, target, 6, Math.min(this.application.time.delta * 0.001, 0.1));
         const affection = this.affection;
-        // Slow sleeping breath; petting adds a contented wriggle.
+        // Petting gently changes breathing; the scanned cat and carpet stay oriented together.
         const breath = 1 + Math.sin(t * 1.2) * 0.018 + affection * Math.sin(t * 5) * 0.015;
         this.inner.scale.y = CAT.length * breath;
-        this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg) + Math.sin(t * 6) * affection * 0.05;
+        this.model.rotation.y = THREE.MathUtils.degToRad(CAT.yawDeg);
         this.model.rotation.x = THREE.MathUtils.degToRad(CAT.pitchDeg);
         this.model.rotation.z = THREE.MathUtils.degToRad(CAT.rollDeg);
         if (!target) this.button.dataset.petting = 'false';
