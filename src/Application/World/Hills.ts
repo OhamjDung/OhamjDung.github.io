@@ -111,6 +111,7 @@ export default class Hills {
         this.enableShadowCasters();
         this.setHaze(29);
         UIEventBus.on('hazeChange', (value: number) => this.setHaze(value));
+        UIEventBus.on('sunChange', (value: number) => { SUN.elevation = value; this.applySun(); });
     }
 
     setHaze(value: number) {

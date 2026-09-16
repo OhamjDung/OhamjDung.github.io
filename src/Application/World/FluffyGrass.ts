@@ -8,23 +8,23 @@ import GUI from 'lil-gui';
 
 export type HeightFn = (x: number, z: number) => number;
 
-const MAX_COUNT = window.innerWidth < 768 ? 30000 : 120000;
+const MAX_COUNT = window.innerWidth < 768 ? 40000 : 180000;
 const TUFT_SCALE = 2700; // LOD00 card is ~0.13 units tall -> ~350 scene units
 // Tunable with ?grass (or ?tune); bake the numbers back here.
 const GRASS = {
-    count: window.innerWidth < 768 ? 22000 : 100000,
-    radius: 110000,
+    count: window.innerWidth < 768 ? 30000 : 120000,
+    radius: 157000,
     // Lower = more tufts clustered near the desk, 1 = uniform.
-    falloff: 0.75,
-    tuftScale: 1,
-    windAmp: 55,
-    heightVariation: 90,
-    noiseScale: 6,
-    lightIntensity: 0.95,
-    shadowDarkness: 0.45,
-    baseColor: '#356d1c',
-    tipColor1: '#a8d150',
-    tipColor2: '#4f9a33',
+    falloff: 0.81,
+    tuftScale: 3.95,
+    windAmp: 300,
+    heightVariation: 0,
+    noiseScale: 6.9,
+    lightIntensity: 0.53,
+    shadowDarkness: 0.44,
+    baseColor: '#49601f',
+    tipColor1: '#8fe14c',
+    tipColor2: '#bf8522',
 };
 
 export default class FluffyGrass {
@@ -143,8 +143,8 @@ export default class FluffyGrass {
         this.gui.add(GRASS, 'count', 1000, MAX_COUNT, 1000).onChange(layout);
         this.gui.add(GRASS, 'radius', 20000, 300000, 1000).onChange(layout);
         this.gui.add(GRASS, 'falloff', 0.3, 1, 0.01).name('spread (1 = even)').onChange(layout);
-        this.gui.add(GRASS, 'tuftScale', 0.3, 4, 0.05).name('tuft size').onChange(layout);
-        this.gui.add(GRASS, 'windAmp', 0, 300, 1).name('wind').onChange(shade);
+        this.gui.add(GRASS, 'tuftScale', 0.3, 8, 0.05).name('tuft size').onChange(layout);
+        this.gui.add(GRASS, 'windAmp', 0, 600, 1).name('wind').onChange(shade);
         this.gui.add(GRASS, 'heightVariation', 0, 400, 1).name('height variation').onChange(shade);
         this.gui.add(GRASS, 'noiseScale', 0.5, 20, 0.1).name('patchiness').onChange(shade);
         this.gui.add(GRASS, 'lightIntensity', 0, 2, 0.01).name('brightness').onChange(shade);
