@@ -20,6 +20,21 @@ const sources: Resource[] = [
         path: 'models/World/baked_environment.jpg',
     },
     {
+        name: 'grassTuftModel',
+        type: 'gltfModel',
+        path: 'models/Grass/grassLODs.glb',
+    },
+    {
+        name: 'grassAlphaTexture',
+        type: 'texture',
+        path: 'textures/grass/grass.jpeg',
+    },
+    {
+        name: 'grassNoiseTexture',
+        type: 'texture',
+        path: 'textures/grass/perlinnoise.webp',
+    },
+    {
         name: 'catModel',
         type: 'gltfModel',
         path: 'models/Cat/sleepy_comfy_cat.glb',

@@ -6,6 +6,10 @@ This work is based on "Sleeping Cat On The Bed 1 - 3D scan" (https://sketchfab.c
 
 Model file: `static/models/Cat/sleepy_comfy_cat.glb`.
 
+## Fluffy grass
+
+Grass tuft model (`static/models/Grass/grassLODs.glb`), blade alpha texture and noise texture (`static/textures/grass/`) and the grass shader approach come from https://github.com/thebenezer/FluffyGrass by Ebenezer (MIT, Copyright (c) 2023 Ebenezer).
+
 ## Room scene
 
 Based on https://github.com/henryjeff/portfolio-website by Henry Heffernan (MIT). See `LICENSE.md`.
