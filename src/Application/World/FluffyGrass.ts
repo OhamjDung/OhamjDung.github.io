@@ -21,7 +21,7 @@ const GRASS = {
     windAmp: 300,
     heightVariation: 0,
     noiseScale: 6.9,
-    lightIntensity: 0.53,
+    lightIntensity: 0.62,
     shadowDarkness: 0.44,
     baseColor: '#49601f',
     tipColor1: '#8fe14c',
@@ -46,6 +46,9 @@ export default class FluffyGrass {
         uBaseColor: { value: new THREE.Color(GRASS.baseColor).convertSRGBToLinear() },
         uTipColor1: { value: new THREE.Color(GRASS.tipColor1).convertSRGBToLinear() },
         uTipColor2: { value: new THREE.Color(GRASS.tipColor2).convertSRGBToLinear() },
+        uSunDirection: { value: new THREE.Vector3(0, 1, 0) },
+        uSunColor: { value: new THREE.Color(1, 1, 1) },
+        uAmbient: { value: new THREE.Color(0.35, 0.4, 0.35) },
         uNoiseTexture: { value: null as THREE.Texture | null },
         uGrassAlphaTexture: { value: null as THREE.Texture | null },
     };
@@ -153,6 +156,13 @@ export default class FluffyGrass {
         this.gui.addColor(GRASS, 'tipColor2').name('tip color 2').onChange(shade);
     }
 
+    // Sun colour is normalised so the tuned brightness reads the same at the default intensity.
+    setSun(direction: THREE.Vector3, color: THREE.Color, intensity: number, ambient: THREE.Color) {
+        this.uniforms.uSunDirection.value.copy(direction).normalize();
+        this.uniforms.uSunColor.value.copy(color).multiplyScalar(intensity / 1.95);
+        this.uniforms.uAmbient.value.copy(ambient);
+    }
+
     update() {
         this.uniforms.uTime.value = this.time.elapsed * 0.001;
     }
@@ -171,6 +181,7 @@ uniform float uHeightVariation;
 varying vec2 vGlobalUV;
 varying vec2 vUv;
 varying vec3 vNormal;
+varying vec3 vWorldNormal;
 varying vec3 vViewPosition;
 void main() {
     #include <begin_vertex>
@@ -194,6 +205,7 @@ void main() {
     gl_Position = projectionMatrix * viewPosition;
     vUv = vec2(uv.x, 1.0 - uv.y);
     vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix * instanceMatrix) * normal);
     vViewPosition = -viewPosition.xyz;
 }
 `;
@@ -213,9 +225,13 @@ uniform sampler2D uNoiseTexture;
 uniform float uNoiseScale;
 uniform float uGrassLightIntensity;
 uniform float uShadowDarkness;
+uniform vec3 uSunDirection;
+uniform vec3 uSunColor;
+uniform vec3 uAmbient;
 varying vec2 vUv;
 varying vec2 vGlobalUV;
 varying vec3 vNormal;
+varying vec3 vWorldNormal;
 varying vec3 vViewPosition;
 void main() {
     float grassAlpha = texture2D(uGrassAlphaTexture, vUv).r;
@@ -237,6 +253,11 @@ void main() {
         }
         #pragma unroll_loop_end
     #endif
+    // Blades mostly face up; blend the card normal toward up so the whole field reads the sun angle.
+    vec3 n = normalize(mix(abs(vWorldNormal), vec3(0.0, 1.0, 0.0), 0.65));
+    float ndl = max(dot(n, uSunDirection), 0.0);
+    float wrap = 0.35 + 0.65 * ndl;
+    color *= uAmbient + uSunColor * wrap;
     color = mix(color * uShadowDarkness, color, shadow);
     gl_FragColor = vec4(color, 1.0);
     #include <encodings_fragment>

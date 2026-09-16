@@ -89,6 +89,7 @@ export default class Hills {
     grass: FluffyGrass;
     haze = { value: 0.45 };
     sun: THREE.DirectionalLight;
+    fillColor = new THREE.Color('#9fb98c').convertSRGBToLinear();
     sunDisc: THREE.Sprite;
     sunGlow: THREE.Sprite;
     gui: GUI;
@@ -377,6 +378,7 @@ export default class Hills {
         this.sun.position.copy(dir).multiplyScalar(SUN_DISTANCE);
         this.sun.intensity = SUN.intensity;
         this.sun.color.set(SUN.color).convertSRGBToLinear();
+        if (this.grass) this.grass.setSun(dir, this.sun.color, SUN.intensity, this.fillColor);
         if (this.sunDisc) {
             const skyPos = dir.clone().multiplyScalar(SKY_RADIUS * 0.9);
             skyPos.y += FLOOR_Y;
