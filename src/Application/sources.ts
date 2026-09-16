@@ -20,6 +20,11 @@ const sources: Resource[] = [
         path: 'models/World/baked_environment.jpg',
     },
     {
+        name: 'catModel',
+        type: 'gltfModel',
+        path: 'models/Cat/toon_cat_free.glb',
+    },
+    {
         name: 'decorModel',
         type: 'gltfModel',
         path: 'models/Decor/decor.glb',
