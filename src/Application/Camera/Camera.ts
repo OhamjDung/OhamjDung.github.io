@@ -79,7 +79,9 @@ export default class Camera extends EventEmitter {
             else if (this.currentKeyframe === CameraKey.DESK) this.transition(CameraKey.IDLE);
         };
         document.addEventListener('click', (event) => {
-            if (!isControl(event.target)) forward();
+            if (isControl(event.target)) return;
+            // Iframe clicks never reach this document, so a click here at max zoom is on the bezel.
+            if (this.currentKeyframe === CameraKey.MONITOR) backward(); else forward();
         });
         let total = 0;
         let lastWheel = 0;
@@ -95,7 +97,7 @@ export default class Camera extends EventEmitter {
             if (event.deltaY === 0 || consumedGesture) { total = 0; return; }
             if (Math.sign(total) !== Math.sign(event.deltaY)) total = 0;
             total += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
-            if (Math.abs(total) > 60) {
+            if (Math.abs(total) > 18) {
                 const direction = Math.sign(total);
                 total = 0; consumedGesture = true;
                 if (direction > 0) forward(); else backward();

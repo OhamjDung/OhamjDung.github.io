@@ -7,7 +7,7 @@ import './style.css';
 
 const App = () => {
     const [loading, setLoading] = useState(true);
-    const [haze, setHaze] = useState(45);
+    const [haze, setHaze] = useState(29);
 
     useEffect(() => {
         eventBus.on('loadingScreenDone', () => {

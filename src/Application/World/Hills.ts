@@ -111,7 +111,7 @@ export default class Hills {
         this.setSunDisc();
         this.setGui();
         this.enableShadowCasters();
-        this.setHaze(45);
+        this.setHaze(29);
         UIEventBus.on('hazeChange', (value: number) => this.setHaze(value));
     }
 
@@ -443,6 +443,8 @@ export default class Hills {
             }
         });
         this.clouds.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        // Billboards are re-posed every frame; the static bounding sphere would cull them mid-sky.
+        this.clouds.frustumCulled = false;
         this.scene.add(this.clouds);
     }
 
@@ -556,14 +558,16 @@ export default class Hills {
     update() {
         if (this.grassUniforms) this.grassUniforms.uTime.value = this.time.elapsed * 0.001;
         if (!this.clouds) return;
-        const drift = this.time.elapsed * 0.9;
+        const t = this.time.elapsed * 0.001;
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
         const scale = new THREE.Vector3();
         const quaternion = new THREE.Quaternion();
         this.cloudBase.forEach((base, i) => {
             base.decompose(position, quaternion, scale);
-            position.x += ((drift + this.cloudOffsets[i]) % 90000) - 45000;
+            // Slow back-and-forth drift; no wrap so clouds never jump.
+            position.x += Math.sin(t * 0.03 + this.cloudOffsets[i] * 0.0001) * 12000;
+            position.y += Math.sin(t * 0.021 + this.cloudOffsets[i] * 0.00013) * 1500;
             matrix.compose(position, this.camera.instance.quaternion, scale);
             this.clouds.setMatrixAt(i, matrix);
         });

@@ -20,7 +20,7 @@ export class CameraKeyframeInstance {
 const keys: { [key in CameraKey]: CameraKeyframe } = {
     idle: {
         position: new THREE.Vector3(-24000, 3600, 24000),
-        focalPoint: new THREE.Vector3(0, 5000, 0),
+        focalPoint: new THREE.Vector3(0, 400, 0),
     },
     monitor: {
         position: new THREE.Vector3(0, 950, 2000),
@@ -117,23 +117,28 @@ export class DeskKeyframe extends CameraKeyframeInstance {
 export class IdleKeyframe extends CameraKeyframeInstance {
     time: Time;
     origin: THREE.Vector3;
+    focalOrigin: THREE.Vector3;
 
     constructor() {
         const keyframe = keys.idle;
         super(keyframe);
         this.origin = new THREE.Vector3().copy(keyframe.position);
+        this.focalOrigin = new THREE.Vector3().copy(keyframe.focalPoint);
         this.time = new Time();
     }
 
     update() {
-        // Gentle drift; the camera sits just above the grass so keep the sway small.
-        this.position.x =
-            this.origin.x +
-            Math.sin((this.time.elapsed + 19000) * 0.00008) * 2500;
-        this.position.y =
-            this.origin.y +
-            Math.sin((this.time.elapsed + 1000) * 0.00012) * 500;
-        this.position.z = this.origin.z;
+        // Slow orbit around the desk plus a little focal yaw so the idle shot visibly turns.
+        const t = this.time.elapsed * 0.001;
+        const radius = Math.hypot(this.origin.x, this.origin.z);
+        const baseAngle = Math.atan2(this.origin.z, this.origin.x);
+        const angle = baseAngle + Math.sin(t * 0.11) * 0.16;
+        this.position.x = Math.cos(angle) * radius;
+        this.position.z = Math.sin(angle) * radius;
+        this.position.y = this.origin.y + Math.sin(t * 0.17 + 1) * 350;
+        this.focalPoint.x = this.focalOrigin.x + Math.sin(t * 0.11 + 0.8) * 900;
+        this.focalPoint.z = this.focalOrigin.z + Math.cos(t * 0.11 + 0.8) * 900;
+        this.focalPoint.y = this.focalOrigin.y;
     }
 }
 
