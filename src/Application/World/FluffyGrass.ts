@@ -12,6 +12,7 @@ export type HeightFn = (x: number, z: number) => number;
 const MAX_COUNT = window.innerWidth < 768 ? 40000 : 180000;
 const TUFT_SCALE = 2700; // LOD00 card is ~0.13 units tall -> ~350 scene units
 const PATCH_SIZE = 18000;
+const DESK_DETAIL_RADIUS = 26000;
 const DRAW_DISTANCE = window.innerWidth < 768 ? 75000 : 105000;
 // Tunable with ?grass (or ?tune); bake the numbers back here.
 const GRASS = {
@@ -39,7 +40,7 @@ export default class FluffyGrass {
     meshes: THREE.InstancedMesh[] = [];
     geometries: THREE.BufferGeometry[] = [];
     material: THREE.MeshLambertMaterial;
-    patches: { meshes: THREE.InstancedMesh[]; bounds: THREE.Sphere; lod: number }[] = [];
+    patches: { meshes: THREE.InstancedMesh[]; bounds: THREE.Sphere; lod: number; nearDesk: boolean }[] = [];
     frustum = new THREE.Frustum();
     viewProjection = new THREE.Matrix4();
     get mesh() { return this.meshes[0]; }
@@ -117,7 +118,7 @@ export default class FluffyGrass {
         const euler = new THREE.Euler();
         let seed = 1337;
         const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-        const patches = new Map<string, { matrices: THREE.Matrix4[]; bounds: THREE.Box3 }>();
+        const patches = new Map<string, { matrices: THREE.Matrix4[]; bounds: THREE.Box3; nearDesk: boolean }>();
         let n = 0;
         while (n < count) {
             const r = Math.pow(random(), GRASS.falloff * 0.5) * GRASS.radius;
@@ -132,10 +133,12 @@ export default class FluffyGrass {
             quaternion.setFromEuler(euler);
             scale.set(s, s, s);
             matrix.compose(position, quaternion, scale);
-            const key = `${Math.floor(x / PATCH_SIZE)},${Math.floor(z / PATCH_SIZE)}`;
+            // Keep the original near-desk tufts separate so wide zoom cannot thin them.
+            const nearDesk = r < DESK_DETAIL_RADIUS;
+            const key = `${Math.floor(x / PATCH_SIZE)},${Math.floor(z / PATCH_SIZE)},${nearDesk}`;
             let patch = patches.get(key);
             if (!patch) {
-                patch = { matrices: [], bounds: new THREE.Box3() };
+                patch = { matrices: [], bounds: new THREE.Box3(), nearDesk };
                 patches.set(key, patch);
             }
             patch.matrices.push(matrix.clone());
@@ -150,7 +153,8 @@ export default class FluffyGrass {
         this.patches = [];
         // Random placement order makes each prefix a uniformly distributed density subset.
         patches.forEach((patch) => {
-            const meshes = this.geometries.map((geometry, lod) => {
+            const geometries = patch.nearDesk ? this.geometries.slice(0, 1) : this.geometries;
+            const meshes = geometries.map((geometry, lod) => {
                 const count = Math.max(1, Math.ceil(patch.matrices.length * [1, 0.35, 0.10][lod]));
                 const mesh = new THREE.InstancedMesh(geometry, this.material, count);
                 for (let i = 0; i < count; i++) mesh.setMatrixAt(i, patch.matrices[i]);
@@ -164,7 +168,7 @@ export default class FluffyGrass {
             });
             const bounds = patch.bounds.getBoundingSphere(new THREE.Sphere());
             bounds.radius += 600 * GRASS.tuftScale + 1200;
-            this.patches.push({ meshes, bounds, lod: -1 });
+            this.patches.push({ meshes, bounds, lod: -1, nearDesk: patch.nearDesk });
         });
         this.uniforms.uTerrainSize.value = GRASS.radius * 2;
     }
@@ -217,9 +221,9 @@ export default class FluffyGrass {
         this.frustum.setFromProjectionMatrix(this.viewProjection);
         for (const patch of this.patches) {
             const distance = camera.position.distanceTo(patch.bounds.center);
-            let lod = distance < GRASS.lod1Distance ? 0 : distance < GRASS.lod2Distance ? 1 : 2;
+            let lod = patch.nearDesk || distance < GRASS.lod1Distance ? 0 : distance < GRASS.lod2Distance ? 1 : 2;
             // Hysteresis prevents idle motion from repeatedly swapping cards at a boundary.
-            if (patch.lod >= 0 && lod !== patch.lod) {
+            if (!patch.nearDesk && patch.lod >= 0 && lod !== patch.lod) {
                 const boundary = Math.min(lod, patch.lod) === 0 ? GRASS.lod1Distance : GRASS.lod2Distance;
                 if (Math.abs(distance - boundary) < 1800) lod = patch.lod;
             }
