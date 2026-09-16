@@ -11,6 +11,8 @@ export type HeightFn = (x: number, z: number) => number;
 
 const MAX_COUNT = window.innerWidth < 768 ? 40000 : 180000;
 const TUFT_SCALE = 2700; // LOD00 card is ~0.13 units tall -> ~350 scene units
+const PATCH_SIZE = 18000;
+const DRAW_DISTANCE = window.innerWidth < 768 ? 75000 : 105000;
 // Tunable with ?grass (or ?tune); bake the numbers back here.
 const GRASS = {
     count: window.innerWidth < 768 ? 30000 : 120000,
@@ -26,21 +28,27 @@ const GRASS = {
     baseColor: '#49601f',
     tipColor1: '#8fe14c',
     tipColor2: '#bf8522',
-    // Distance from the desk (scene units) where tufts drop to the 32-tri and 16-tri cards.
-    lod1Distance: 26000,
-    lod2Distance: 70000,
+    // Camera distance where patches switch to simpler, sparser tuft cards.
+    lod1Distance: 18000,
+    lod2Distance: 42000,
 };
 
 export default class FluffyGrass {
     application = new Application();
     time: Time;
     meshes: THREE.InstancedMesh[] = [];
+    geometries: THREE.BufferGeometry[] = [];
+    material: THREE.MeshLambertMaterial;
+    patches: { meshes: THREE.InstancedMesh[]; bounds: THREE.Sphere; lod: number }[] = [];
+    frustum = new THREE.Frustum();
+    viewProjection = new THREE.Matrix4();
     get mesh() { return this.meshes[0]; }
     heightAt: HeightFn;
     avoidRadius: number;
     gui: GUI | undefined;
     uniforms = {
         uTime: { value: 0 },
+        uDrawDistance: { value: DRAW_DISTANCE },
         uTerrainSize: { value: GRASS.radius * 2 },
         uWindAmp: { value: GRASS.windAmp },
         uHeightVariation: { value: GRASS.heightVariation },
@@ -83,7 +91,7 @@ export default class FluffyGrass {
 
         const material = new THREE.MeshLambertMaterial({
             side: THREE.DoubleSide,
-            transparent: true,
+            transparent: false,
             alphaTest: 0.1,
             shadowSide: THREE.FrontSide,
         });
@@ -93,14 +101,8 @@ export default class FluffyGrass {
             shader.fragmentShader = FRAGMENT;
         };
 
-        this.meshes = geometries.map((geometry) => {
-            const mesh = new THREE.InstancedMesh(geometry, material, MAX_COUNT);
-            mesh.receiveShadow = true;
-            mesh.frustumCulled = false;
-            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-            this.application.scene.add(mesh);
-            return mesh;
-        });
+        this.geometries = geometries;
+        this.material = material;
         this.scatter();
         this.setGui();
     }
@@ -115,7 +117,7 @@ export default class FluffyGrass {
         const euler = new THREE.Euler();
         let seed = 1337;
         const random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-        const counts = [0, 0, 0];
+        const patches = new Map<string, { matrices: THREE.Matrix4[]; bounds: THREE.Box3 }>();
         let n = 0;
         while (n < count) {
             const r = Math.pow(random(), GRASS.falloff * 0.5) * GRASS.radius;
@@ -130,13 +132,39 @@ export default class FluffyGrass {
             quaternion.setFromEuler(euler);
             scale.set(s, s, s);
             matrix.compose(position, quaternion, scale);
-            const lod = r < GRASS.lod1Distance ? 0 : r < GRASS.lod2Distance ? 1 : 2;
-            this.meshes[lod].setMatrixAt(counts[lod]++, matrix);
+            const key = `${Math.floor(x / PATCH_SIZE)},${Math.floor(z / PATCH_SIZE)}`;
+            let patch = patches.get(key);
+            if (!patch) {
+                patch = { matrices: [], bounds: new THREE.Box3() };
+                patches.set(key, patch);
+            }
+            patch.matrices.push(matrix.clone());
+            patch.bounds.expandByPoint(position);
             n++;
         }
-        this.meshes.forEach((mesh, i) => {
-            mesh.count = counts[i];
-            mesh.instanceMatrix.needsUpdate = true;
+        this.meshes.forEach((mesh) => {
+            this.application.scene.remove(mesh);
+            mesh.dispose();
+        });
+        this.meshes = [];
+        this.patches = [];
+        // Random placement order makes each prefix a uniformly distributed density subset.
+        patches.forEach((patch) => {
+            const meshes = this.geometries.map((geometry, lod) => {
+                const count = Math.max(1, Math.ceil(patch.matrices.length * [1, 0.35, 0.10][lod]));
+                const mesh = new THREE.InstancedMesh(geometry, this.material, count);
+                for (let i = 0; i < count; i++) mesh.setMatrixAt(i, patch.matrices[i]);
+                mesh.receiveShadow = lod === 0;
+                // Three r137 cannot cull instanced bounds; use our padded patch bounds below.
+                mesh.frustumCulled = false;
+                mesh.visible = false;
+                this.application.scene.add(mesh);
+                this.meshes.push(mesh);
+                return mesh;
+            });
+            const bounds = patch.bounds.getBoundingSphere(new THREE.Sphere());
+            bounds.radius += 600 * GRASS.tuftScale + 1200;
+            this.patches.push({ meshes, bounds, lod: -1 });
         });
         this.uniforms.uTerrainSize.value = GRASS.radius * 2;
     }
@@ -183,6 +211,22 @@ export default class FluffyGrass {
 
     update() {
         this.uniforms.uTime.value = this.time.elapsed * 0.001;
+        const camera = this.application.camera.instance;
+        camera.updateMatrixWorld();
+        this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+        this.frustum.setFromProjectionMatrix(this.viewProjection);
+        for (const patch of this.patches) {
+            const distance = camera.position.distanceTo(patch.bounds.center);
+            let lod = distance < GRASS.lod1Distance ? 0 : distance < GRASS.lod2Distance ? 1 : 2;
+            // Hysteresis prevents idle motion from repeatedly swapping cards at a boundary.
+            if (patch.lod >= 0 && lod !== patch.lod) {
+                const boundary = Math.min(lod, patch.lod) === 0 ? GRASS.lod1Distance : GRASS.lod2Distance;
+                if (Math.abs(distance - boundary) < 1800) lod = patch.lod;
+            }
+            patch.lod = lod;
+            const visible = distance - patch.bounds.radius < DRAW_DISTANCE && this.frustum.intersectsSphere(patch.bounds);
+            patch.meshes.forEach((mesh, index) => { mesh.visible = visible && index === lod; });
+        }
     }
 }
 
@@ -193,6 +237,7 @@ const VERTEX = /* glsl */ `
 uniform sampler2D uNoiseTexture;
 uniform float uNoiseScale;
 uniform float uTime;
+uniform float uDrawDistance;
 uniform float uTerrainSize;
 uniform float uWindAmp;
 uniform float uHeightVariation;
@@ -211,6 +256,9 @@ void main() {
     #include <shadowmap_vertex>
 
     vec4 modelPosition = modelMatrix * instanceMatrix * vec4(position, 1.0);
+    vec3 root = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float fade = 1.0 - smoothstep(uDrawDistance * 0.75, uDrawDistance, distance(cameraPosition, root));
+    modelPosition.y = mix(root.y, modelPosition.y, fade);
     vGlobalUV = (uTerrainSize - modelPosition.xz) / uTerrainSize;
     vec4 noise = texture2D(uNoiseTexture, vGlobalUV + uTime * 0.001);
     vec2 windDirection = normalize(vec2(1.0, 1.0));
