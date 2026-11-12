@@ -18,6 +18,9 @@ import {
     OrbitControlsStart,
 } from './CameraKeyframes';
 
+// How long the wide shot holds before the camera moves to the desk on its own.
+const AUTO_ZOOM_HOLD_MS = 900;
+
 export enum CameraKey {
     IDLE = 'idle',
     MONITOR = 'monitor',
@@ -240,7 +243,22 @@ export default class Camera extends EventEmitter {
 
     setPostLoadTransition() {
         UIEventBus.on('loadingScreenDone', () => {
-            this.transition(CameraKey.IDLE, 2500, TWEEN.Easing.Exponential.Out);
+            // After a short look at the wide shot, glide to the desk unless the visitor has taken over.
+            let auto = true;
+            const events = ['pointerdown', 'wheel', 'keydown', 'touchstart'];
+            const takeOver = () => {
+                auto = false;
+                events.forEach((name) => document.removeEventListener(name, takeOver, true));
+            };
+            // Registered a tick late so the START click that fired this event does not count.
+            setTimeout(() => events.forEach((name) => document.addEventListener(name, takeOver, true)), 0);
+            this.transition(CameraKey.IDLE, 2500, TWEEN.Easing.Exponential.Out, () => {
+                setTimeout(() => {
+                    if (auto && !this.freeCam && !this.targetKeyframe && this.currentKeyframe === CameraKey.IDLE)
+                        this.transition(CameraKey.DESK, 1800);
+                    takeOver();
+                }, AUTO_ZOOM_HOLD_MS);
+            });
         });
     }
 

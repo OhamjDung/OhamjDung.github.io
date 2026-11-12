@@ -69,7 +69,7 @@ export default class DeskAccessories {
         document.body.append(this.button, this.input);
         let saved: string | null = null;
         try { saved = localStorage.getItem(PHOTO_KEY); } catch { /* Storage can be disabled. */ }
-        this.loadImage(saved || 'images/preview-new.jpg').then(image => this.setPhoto(image)).catch(() => {});
+        this.loadImage(saved || 'images/frame-photo.png').then(image => this.setPhoto(image)).catch(() => {});
         this.createVolleyball();
     }
 

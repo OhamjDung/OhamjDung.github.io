@@ -20,6 +20,8 @@ body {
 .stage-arrow:hover,.stage-arrow:focus-visible {opacity:1;transform:translateY(-50%) scale(1.08);outline:none;}
 .stage-arrow-left {left:18px;}
 .stage-arrow-right {right:18px;}
+.stage-hint {position:fixed;left:50%;bottom:9%;transform:translateX(-50%);z-index:10001;display:flex;align-items:flex-end;gap:8px;padding:6px 16px;background:#000;color:#fff;font:16px monospace;pointer-events:none;animation:stage-hint-in .5s ease-out both;}
+@keyframes stage-hint-in {from {opacity:0;transform:translate(-50%,10px);}}
 @media (max-width:768px) {.stage-arrow {width:40px;height:64px;}.stage-arrow-left{left:6px;}.stage-arrow-right{right:6px;}}
 .bios-start-button {font:inherit;color:inherit;}
 .cat-hit-target {position:fixed;z-index:3;background:transparent;border:0;cursor:grab;touch-action:none;border-radius:45%;}

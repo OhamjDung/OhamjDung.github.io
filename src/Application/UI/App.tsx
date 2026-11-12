@@ -8,12 +8,18 @@ import './style.css';
 const App = () => {
     const [loading, setLoading] = useState(true);
     const [stage, setStage] = useState('loading');
+    // The desk hint goes away for good once the visitor has been inside the monitor.
+    const [entered, setEntered] = useState(false);
 
     useEffect(() => {
         eventBus.on('loadingScreenDone', () => {
             setLoading(false);
         });
-        const observer = new MutationObserver(() => setStage(document.body.dataset.camera || ''));
+        const observer = new MutationObserver(() => {
+            const next = document.body.dataset.camera || '';
+            setStage(next);
+            if (next === 'to-monitor' || next === 'monitor') setEntered(true);
+        });
         observer.observe(document.body, { attributes: true, attributeFilter: ['data-camera'] });
         return () => observer.disconnect();
     }, []);
@@ -32,6 +38,12 @@ const App = () => {
                     onClick={() => eventBus.dispatch('cameraForward', {})}>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4l8 8-8 8" /></svg>
                 </button>
+            )}
+            {!loading && !entered && stage === 'desk' && (
+                <div className="stage-hint" role="status">
+                    <span>Click the screen</span>
+                    <span className="blinking-cursor" />
+                </div>
             )}
         </div>
     );
